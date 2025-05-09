@@ -1,0 +1,771 @@
+import React, { useState, useEffect } from 'react';
+import api from '../utils/api';
+
+interface Patient {
+  id: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: string;
+  phone: string;
+  email: string | null;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+  insuranceInfo: {
+    primary: {
+      payerId: string;
+      memberId: string;
+      groupNumber?: string;
+    };
+    secondary?: {
+      payerId: string;
+      memberId: string;
+      groupNumber?: string;
+    };
+  };
+  providerId?: string | null;
+}
+
+interface Payer {
+  id: string;
+  name: string;
+  payerId: string;
+  payerType: string;
+}
+
+interface Provider {
+  id: string;
+  firstName: string;
+  lastName: string;
+  credentials?: string | null;
+}
+
+interface PatientFormData {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: string;
+  phone: string;
+  email: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+  insuranceInfo: {
+    primary: {
+      payerId: string;
+      memberId: string;
+      groupNumber: string;
+    };
+    secondary: {
+      payerId: string;
+      memberId: string;
+      groupNumber: string;
+    };
+  };
+  providerId: string;
+}
+
+interface AddressType {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
+const PatientList: React.FC = () => {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [payers, setPayers] = useState<Payer[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState<'add' | 'edit' | 'view' | 'delete'>('add');
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [formData, setFormData] = useState<PatientFormData>({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: 'male',
+    phone: '',
+    email: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: ''
+    },
+    insuranceInfo: {
+      primary: {
+        payerId: '',
+        memberId: '',
+        groupNumber: ''
+      },
+      secondary: {
+        payerId: '',
+        memberId: '',
+        groupNumber: ''
+      }
+    },
+    providerId: ''
+  });
+
+  useEffect(() => {
+    fetchPatients();
+    fetchPayers();
+    fetchProviders();
+  }, []);
+
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/patients');
+      setPatients(response.data);
+    } catch (err) {
+      setError('Failed to fetch patients. Please check your connection and try again.');
+      console.error('Error fetching patients:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPayers = async () => {
+    try {
+      const response = await api.get('/payers');
+      setPayers(response.data);
+    } catch (err) {
+      console.error('Error fetching payers:', err);
+      // We don't set general error here as it would block the whole interface
+    }
+  };
+
+  const fetchProviders = async () => {
+    try {
+      const response = await api.get('/providers');
+      setProviders(response.data);
+    } catch (err) {
+      console.error('Error fetching providers:', err);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    if (name.includes('.')) {
+      const parts = name.split('.');
+      
+      if (parts.length === 2) {
+        // Handle address fields
+        if (parts[0] === 'address') {
+          setFormData(prev => ({
+            ...prev,
+            address: {
+              ...prev.address,
+              [parts[1]]: value
+            }
+          }));
+        }
+      } else if (parts.length === 3) {
+        // Handle insurance fields: insuranceInfo.primary.payerId
+        const [parent, type, field] = parts;
+        if (parent === 'insuranceInfo' && (type === 'primary' || type === 'secondary')) {
+          setFormData(prev => ({
+            ...prev,
+            insuranceInfo: {
+              ...prev.insuranceInfo,
+              [type]: {
+                ...prev.insuranceInfo[type as keyof typeof prev.insuranceInfo],
+                [field]: value
+              }
+            }
+          }));
+        }
+      }
+    } else {
+      // Handle top-level fields
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
+  const openModal = (type: 'add' | 'edit' | 'view' | 'delete', patient?: Patient) => {
+    setModalType(type);
+    
+    if (patient) {
+      setSelectedPatient(patient);
+      if (type === 'edit' || type === 'view') {
+        // Format date for input
+        const formattedDate = new Date(patient.dateOfBirth)
+          .toISOString()
+          .split('T')[0];
+          
+        setFormData({
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          dateOfBirth: formattedDate,
+          gender: patient.gender,
+          phone: patient.phone,
+          email: patient.email || '',
+          address: {
+            street: patient.address.street,
+            city: patient.address.city,
+            state: patient.address.state,
+            zipCode: patient.address.zipCode
+          },
+          insuranceInfo: {
+            primary: {
+              payerId: patient.insuranceInfo.primary.payerId,
+              memberId: patient.insuranceInfo.primary.memberId,
+              groupNumber: patient.insuranceInfo.primary.groupNumber || ''
+            },
+            secondary: patient.insuranceInfo.secondary ? {
+              payerId: patient.insuranceInfo.secondary.payerId,
+              memberId: patient.insuranceInfo.secondary.memberId,
+              groupNumber: patient.insuranceInfo.secondary.groupNumber || ''
+            } : {
+              payerId: '',
+              memberId: '',
+              groupNumber: ''
+            }
+          },
+          providerId: patient.providerId || ''
+        });
+      }
+    } else {
+      // Reset form for add
+      setFormData({
+        firstName: '',
+        lastName: '',
+        dateOfBirth: '',
+        gender: 'male',
+        phone: '',
+        email: '',
+        address: {
+          street: '',
+          city: '',
+          state: '',
+          zipCode: ''
+        },
+        insuranceInfo: {
+          primary: {
+            payerId: '',
+            memberId: '',
+            groupNumber: ''
+          },
+          secondary: {
+            payerId: '',
+            memberId: '',
+            groupNumber: ''
+          }
+        },
+        providerId: ''
+      });
+    }
+    
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedPatient(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      let url = '/patients';
+      let method = 'post';
+      let successMessage = 'Patient added successfully';
+      
+      // Simple validation
+      if (!formData.firstName || !formData.lastName || !formData.dateOfBirth) {
+        alert('Please fill in all required fields');
+        return;
+      }
+      
+      // For edit, use PUT and include the patient ID
+      if (modalType === 'edit' && selectedPatient) {
+        url = `${url}/${selectedPatient.id}`;
+        method = 'put';
+        successMessage = 'Patient updated successfully';
+      }
+      
+      // Prepare data for submission
+      // Remove empty secondary insurance if not provided
+      const submitData = {
+        ...formData,
+        insuranceInfo: {
+          primary: formData.insuranceInfo.primary,
+          ...(formData.insuranceInfo.secondary.payerId && formData.insuranceInfo.secondary.memberId 
+            ? { secondary: formData.insuranceInfo.secondary } 
+            : {})
+        }
+      };
+      
+      // Using axios methods directly with our api utility
+      if (method === 'post') {
+        await api.post(url, submitData);
+      } else {
+        await api.put(url, submitData);
+      }
+      
+      alert(successMessage);
+      closeModal();
+      fetchPatients(); // Refresh the list
+      
+    } catch (err) {
+      console.error('Error saving patient:', err);
+      alert('Failed to save patient');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedPatient) return;
+    
+    try {
+      await api.delete(`/patients/${selectedPatient.id}`);
+      
+      alert('Patient deleted successfully');
+      closeModal();
+      fetchPatients(); // Refresh the list
+      
+    } catch (err) {
+      console.error('Error deleting patient:', err);
+      alert('Failed to delete patient');
+    }
+  };
+
+  const renderModal = () => {
+    if (!showModal) return null;
+    
+    return (
+      <div className="modal-overlay">
+        <div className="modal">
+          <div className="modal-header">
+            <h3>
+              {modalType === 'add' && 'Add New Patient'}
+              {modalType === 'edit' && 'Edit Patient'}
+              {modalType === 'view' && 'Patient Details'}
+              {modalType === 'delete' && 'Confirm Delete'}
+            </h3>
+            <button onClick={closeModal} className="close-btn">&times;</button>
+          </div>
+          
+          <div className="modal-body">
+            {(modalType === 'add' || modalType === 'edit') && (
+              <form onSubmit={handleSubmit}>
+                <h4>Personal Information</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="firstName">First Name*</label>
+                    <input 
+                      type="text" 
+                      id="firstName" 
+                      name="firstName" 
+                      value={formData.firstName} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="lastName">Last Name*</label>
+                    <input 
+                      type="text" 
+                      id="lastName" 
+                      name="lastName" 
+                      value={formData.lastName} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="dateOfBirth">Date of Birth*</label>
+                    <input 
+                      type="date" 
+                      id="dateOfBirth" 
+                      name="dateOfBirth" 
+                      value={formData.dateOfBirth} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="gender">Gender*</label>
+                    <select 
+                      id="gender" 
+                      name="gender" 
+                      value={formData.gender} 
+                      onChange={handleInputChange} 
+                      required 
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="phone">Phone*</label>
+                    <input 
+                      type="tel" 
+                      id="phone" 
+                      name="phone" 
+                      value={formData.phone} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="email">Email</label>
+                    <input 
+                      type="email" 
+                      id="email" 
+                      name="email" 
+                      value={formData.email} 
+                      onChange={handleInputChange} 
+                    />
+                  </div>
+                </div>
+                
+                <h4>Address</h4>
+                <div className="form-group">
+                  <label htmlFor="address.street">Street*</label>
+                  <input 
+                    type="text" 
+                    id="address.street" 
+                    name="address.street" 
+                    value={formData.address.street} 
+                    onChange={handleInputChange} 
+                    required 
+                  />
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="address.city">City*</label>
+                    <input 
+                      type="text" 
+                      id="address.city" 
+                      name="address.city" 
+                      value={formData.address.city} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="address.state">State*</label>
+                    <input 
+                      type="text" 
+                      id="address.state" 
+                      name="address.state" 
+                      value={formData.address.state} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="address.zipCode">Zip Code*</label>
+                    <input 
+                      type="text" 
+                      id="address.zipCode" 
+                      name="address.zipCode" 
+                      value={formData.address.zipCode} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="providerId">Assigned Provider</label>
+                    <select 
+                      id="providerId" 
+                      name="providerId" 
+                      value={formData.providerId} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Provider</option>
+                      {providers.map(provider => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.lastName}, {provider.firstName} {provider.credentials ? `(${provider.credentials})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <h4>Primary Insurance</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="insuranceInfo.primary.payerId">Insurance Provider*</label>
+                    <select
+                      id="insuranceInfo.primary.payerId"
+                      name="insuranceInfo.primary.payerId"
+                      value={formData.insuranceInfo.primary.payerId}
+                      onChange={handleInputChange}
+                      required
+                    >
+                      <option value="">Select Insurance</option>
+                      {payers.map(payer => (
+                        <option key={payer.id} value={payer.id}>
+                          {payer.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="insuranceInfo.primary.memberId">Subscriber ID / Member ID*</label>
+                    <input
+                      type="text"
+                      id="insuranceInfo.primary.memberId"
+                      name="insuranceInfo.primary.memberId"
+                      value={formData.insuranceInfo.primary.memberId}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="insuranceInfo.primary.groupNumber">Group Number</label>
+                    <input
+                      type="text"
+                      id="insuranceInfo.primary.groupNumber"
+                      name="insuranceInfo.primary.groupNumber"
+                      value={formData.insuranceInfo.primary.groupNumber}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
+                
+                <h4>Secondary Insurance (Optional)</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="insuranceInfo.secondary.payerId">Insurance Provider</label>
+                    <select
+                      id="insuranceInfo.secondary.payerId"
+                      name="insuranceInfo.secondary.payerId"
+                      value={formData.insuranceInfo.secondary.payerId}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Insurance</option>
+                      {payers.map(payer => (
+                        <option key={payer.id} value={payer.id}>
+                          {payer.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="insuranceInfo.secondary.memberId">Subscriber ID / Member ID</label>
+                    <input
+                      type="text"
+                      id="insuranceInfo.secondary.memberId"
+                      name="insuranceInfo.secondary.memberId"
+                      value={formData.insuranceInfo.secondary.memberId}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="insuranceInfo.secondary.groupNumber">Group Number</label>
+                    <input
+                      type="text"
+                      id="insuranceInfo.secondary.groupNumber"
+                      name="insuranceInfo.secondary.groupNumber"
+                      value={formData.insuranceInfo.secondary.groupNumber}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeModal} className="btn">Cancel</button>
+                  <button type="submit" className="btn btn-primary">Save</button>
+                </div>
+              </form>
+            )}
+            
+            {modalType === 'view' && selectedPatient && (
+              <div className="patient-details">
+                <h4>Personal Information</h4>
+                <div className="detail-row">
+                  <strong>Name:</strong> {selectedPatient.firstName} {selectedPatient.lastName}
+                </div>
+                <div className="detail-row">
+                  <strong>Date of Birth:</strong> {new Date(selectedPatient.dateOfBirth).toLocaleDateString()}
+                </div>
+                <div className="detail-row">
+                  <strong>Gender:</strong> {selectedPatient.gender}
+                </div>
+                <div className="detail-row">
+                  <strong>Phone:</strong> {selectedPatient.phone}
+                </div>
+                <div className="detail-row">
+                  <strong>Email:</strong> {selectedPatient.email || 'N/A'}
+                </div>
+                
+                <h4>Address</h4>
+                <div className="detail-row">
+                  <strong>Street:</strong> {selectedPatient.address.street}
+                </div>
+                <div className="detail-row">
+                  <strong>City:</strong> {selectedPatient.address.city}
+                </div>
+                <div className="detail-row">
+                  <strong>State:</strong> {selectedPatient.address.state}
+                </div>
+                <div className="detail-row">
+                  <strong>Zip Code:</strong> {selectedPatient.address.zipCode}
+                </div>
+                
+                {selectedPatient.providerId && (
+                  <div className="detail-row">
+                    <strong>Provider:</strong> {providers.find(p => p.id === selectedPatient.providerId)?.lastName}, {providers.find(p => p.id === selectedPatient.providerId)?.firstName}
+                  </div>
+                )}
+                
+                <h4>Primary Insurance</h4>
+                <div className="detail-row">
+                  <strong>Provider:</strong> {payers.find(p => p.id === selectedPatient.insuranceInfo.primary.payerId)?.name || 'Unknown'}
+                </div>
+                <div className="detail-row">
+                  <strong>Subscriber ID:</strong> {selectedPatient.insuranceInfo.primary.memberId}
+                </div>
+                {selectedPatient.insuranceInfo.primary.groupNumber && (
+                  <div className="detail-row">
+                    <strong>Group Number:</strong> {selectedPatient.insuranceInfo.primary.groupNumber}
+                  </div>
+                )}
+                
+                {selectedPatient.insuranceInfo.secondary && (
+                  <>
+                    <h4>Secondary Insurance</h4>
+                    <div className="detail-row">
+                      <strong>Provider:</strong> {payers.find(p => p.id === selectedPatient.insuranceInfo.secondary?.payerId)?.name || 'Unknown'}
+                    </div>
+                    <div className="detail-row">
+                      <strong>Subscriber ID:</strong> {selectedPatient.insuranceInfo.secondary.memberId}
+                    </div>
+                    {selectedPatient.insuranceInfo.secondary.groupNumber && (
+                      <div className="detail-row">
+                        <strong>Group Number:</strong> {selectedPatient.insuranceInfo.secondary.groupNumber}
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeModal} className="btn">Close</button>
+                  <button type="button" onClick={() => openModal('edit', selectedPatient)} className="btn btn-primary">Edit</button>
+                </div>
+              </div>
+            )}
+            
+            {modalType === 'delete' && (
+              <div className="delete-confirmation">
+                <p>Are you sure you want to delete {selectedPatient?.firstName} {selectedPatient?.lastName}?</p>
+                <p>This action cannot be undone.</p>
+                
+                <div className="form-actions">
+                  <button type="button" onClick={closeModal} className="btn">Cancel</button>
+                  <button type="button" onClick={handleDelete} className="btn btn-danger">Delete</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) return <div>Loading patients...</div>;
+  if (error) return <div className="error">{error}</div>;
+
+  return (
+    <div>
+      <h2>Patients</h2>
+      <button 
+        className="btn btn-primary" 
+        style={{ marginBottom: '1rem' }}
+        onClick={() => openModal('add')}
+      >
+        Add New Patient
+      </button>
+      
+      {patients.length === 0 ? (
+        <p>No patients found.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Date of Birth</th>
+              <th>Gender</th>
+              <th>Phone</th>
+              <th>Primary Insurance</th>
+              <th>Subscriber ID</th>
+              <th>Provider</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {patients.map((patient) => (
+              <tr key={patient.id}>
+                <td>{`${patient.lastName}, ${patient.firstName}`}</td>
+                <td>{new Date(patient.dateOfBirth).toLocaleDateString()}</td>
+                <td>{patient.gender}</td>
+                <td>{patient.phone}</td>
+                <td>{payers.find(p => p.id === patient.insuranceInfo.primary.payerId)?.name || 'Unknown'}</td>
+                <td>{patient.insuranceInfo.primary.memberId}</td>
+                <td>{patient.providerId ? 
+                    `${providers.find(p => p.id === patient.providerId)?.lastName || ''}, ${providers.find(p => p.id === patient.providerId)?.firstName || ''}` : 
+                    'None'}</td>
+                <td className="actions">
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => openModal('view', patient)}
+                  >
+                    View
+                  </button>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => openModal('edit', patient)}
+                  >
+                    Edit
+                  </button>
+                  <button 
+                    className="btn btn-danger"
+                    onClick={() => openModal('delete', patient)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      
+      {renderModal()}
+    </div>
+  );
+};
+
+export default PatientList; 
