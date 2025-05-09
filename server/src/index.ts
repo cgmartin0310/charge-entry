@@ -105,6 +105,45 @@ app.get('/api/admin-setup', async (req, res) => {
   }
 });
 
+// Reset admin password endpoint
+app.get('/api/reset-admin-password', async (req, res) => {
+  try {
+    // Find the admin user
+    const adminUser = await prisma.user.findFirst({
+      where: { role: 'SUPER_ADMIN' }
+    });
+
+    if (!adminUser) {
+      return res.status(404).json({
+        message: 'No admin user found'
+      });
+    }
+
+    // Set password to Admin123!
+    const password = 'Admin123!';
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // Update the admin password
+    await prisma.user.update({
+      where: { id: adminUser.id },
+      data: { passwordHash }
+    });
+
+    return res.json({
+      message: 'Admin password has been reset successfully',
+      email: adminUser.email,
+      username: adminUser.username,
+      password: password
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: 'Error resetting admin password',
+      error: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   const dbStatus = await testDatabaseConnection();
