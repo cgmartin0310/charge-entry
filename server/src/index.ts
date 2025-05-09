@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { prisma, testDatabaseConnection } from './lib/prisma';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 // Routes import
 import patientRoutes from './routes/patientRoutes';
@@ -42,15 +43,6 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Global error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ 
-    message: 'An unexpected error occurred', 
-    error: process.env.NODE_ENV === 'production' ? undefined : String(err) 
-  });
-});
-
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
@@ -60,12 +52,74 @@ app.use('/api/charges', chargeRoutes);
 app.use('/api/procedures', procedureRoutes);
 app.use('/api/providers', providerRoutes);
 
+// Admin setup endpoint - accessible at /api/admin-setup
+app.get('/api/admin-setup', async (req, res) => {
+  try {
+    // Check if super admin already exists
+    const existingAdmin = await prisma.user.findFirst({
+      where: { role: 'SUPER_ADMIN' }
+    });
+
+    if (existingAdmin) {
+      return res.json({
+        message: 'A super admin user already exists',
+        email: existingAdmin.email,
+        username: existingAdmin.username
+      });
+    }
+
+    // Admin details
+    const adminDetails = {
+      username: 'admin',
+      email: 'admin@example.com',
+      password: 'Admin123!', // This should be changed after first login
+      role: 'SUPER_ADMIN'
+    };
+
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(adminDetails.password, salt);
+
+    // Create the super admin
+    const superAdmin = await prisma.user.create({
+      data: {
+        username: adminDetails.username,
+        email: adminDetails.email,
+        passwordHash,
+        role: adminDetails.role,
+        active: true
+      }
+    });
+
+    return res.json({
+      message: 'Super admin user created successfully!',
+      email: superAdmin.email,
+      username: superAdmin.username,
+      password: adminDetails.password
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: 'Error creating admin user',
+      error: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   const dbStatus = await testDatabaseConnection();
   res.status(200).json({ 
     status: 'ok',
     database: dbStatus ? 'connected' : 'connection failed'
+  });
+});
+
+// Global error handler - should be after all routes
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ 
+    message: 'An unexpected error occurred', 
+    error: process.env.NODE_ENV === 'production' ? undefined : String(err) 
   });
 });
 
