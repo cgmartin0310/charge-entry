@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../utils/api';
 
 interface Payer {
   id: string;
@@ -62,9 +63,6 @@ const PayerList: React.FC = () => {
       zipCode: ''
     }
   });
-  
-  // API base URL
-  const API_URL = 'http://localhost:5002/api';
 
   useEffect(() => {
     fetchPayers();
@@ -74,12 +72,8 @@ const PayerList: React.FC = () => {
   const fetchPayers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/payers`);
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-      const data = await response.json();
-      setPayers(data);
+      const response = await api.get('/payers');
+      setPayers(response.data);
     } catch (err) {
       setError('Failed to fetch payers');
       console.error('Error fetching payers:', err);
@@ -90,12 +84,8 @@ const PayerList: React.FC = () => {
 
   const fetchProcedures = async () => {
     try {
-      const response = await fetch(`${API_URL}/procedures`);
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-      const data = await response.json();
-      setProcedures(data);
+      const response = await api.get('/procedures');
+      setProcedures(response.data);
     } catch (err) {
       console.error('Error fetching procedures:', err);
     }
@@ -180,8 +170,8 @@ const PayerList: React.FC = () => {
     e.preventDefault();
     
     try {
-      let url = `${API_URL}/payers`;
-      let method = 'POST';
+      let url = '/payers';
+      let method = 'post';
       let successMessage = 'Payer added successfully';
       
       // Simple validation
@@ -193,7 +183,7 @@ const PayerList: React.FC = () => {
       // For edit, use PUT and include the patient ID
       if (modalType === 'edit' && selectedPayer) {
         url = `${url}/${selectedPayer.id}`;
-        method = 'PUT';
+        method = 'put';
         successMessage = 'Payer updated successfully';
       }
       
@@ -204,16 +194,10 @@ const PayerList: React.FC = () => {
         defaultProcedureId: formData.defaultProcedureId || null
       };
       
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(submitData)
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+      if (method === 'post') {
+        await api.post(url, submitData);
+      } else {
+        await api.put(url, submitData);
       }
       
       alert(successMessage);
@@ -230,13 +214,7 @@ const PayerList: React.FC = () => {
     if (!selectedPayer) return;
     
     try {
-      const response = await fetch(`${API_URL}/payers/${selectedPayer.id}`, {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
+      await api.delete(`/payers/${selectedPayer.id}`);
       
       alert('Payer deleted successfully');
       closeModal();

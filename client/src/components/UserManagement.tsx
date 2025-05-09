@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 
 interface User {
   id: string;
@@ -21,8 +21,6 @@ interface Provider {
   firstName: string;
   lastName: string;
 }
-
-const API_URL = 'http://localhost:5002/api';
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -49,10 +47,7 @@ const UserManagement: React.FC = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
-      const response = await axios.get(`${API_URL}/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/users');
       setUsers(response.data);
       setError(null);
     } catch (err: any) {
@@ -65,10 +60,7 @@ const UserManagement: React.FC = () => {
 
   const fetchProviders = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await axios.get(`${API_URL}/providers`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/providers');
       setProviders(response.data);
     } catch (err) {
       console.error('Error fetching providers:', err);
@@ -91,8 +83,6 @@ const UserManagement: React.FC = () => {
     
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
-      const headers = { Authorization: `Bearer ${token}` };
       
       // Don't send password if empty on edit
       const submitData: Record<string, any> = { ...formData };
@@ -101,9 +91,9 @@ const UserManagement: React.FC = () => {
       }
 
       if (isCreating) {
-        await axios.post(`${API_URL}/users/register`, submitData, { headers });
+        await api.post('/users/register', submitData);
       } else if (editingUser) {
-        await axios.put(`${API_URL}/users/${editingUser.id}`, submitData, { headers });
+        await api.put(`/users/${editingUser.id}`, submitData);
       }
       
       fetchUsers();
@@ -124,10 +114,7 @@ const UserManagement: React.FC = () => {
     
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
-      await axios.delete(`${API_URL}/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/users/${userId}`);
       
       setUsers(users.filter(user => user.id !== userId));
       setError(null);
