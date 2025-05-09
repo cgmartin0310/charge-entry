@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { prisma, testDatabaseConnection } from './lib/prisma';
+import { PrismaClient } from '@prisma/client';
 
 // Routes import
 import patientRoutes from './routes/patientRoutes';
@@ -10,15 +11,35 @@ import chargeRoutes from './routes/chargeRoutes';
 import procedureRoutes from './routes/procedureRoutes';
 import providerRoutes from './routes/providerRoutes';
 import userRoutes from './routes/userRoutes';
+import authRoutes from './routes/auth';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5002;
+const prismaClient = new PrismaClient();
+
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://your-frontend-url.onrender.com' // Add your Render frontend URL here
+];
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Global error handler
@@ -32,6 +53,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Routes
 app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/payers', payerRoutes);
 app.use('/api/charges', chargeRoutes);
