@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../utils/api';
 
 interface Procedure {
   id: string;
@@ -15,19 +16,12 @@ const ProcedureList: React.FC = () => {
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // API base URL
-  const API_URL = 'http://localhost:5002/api';
 
   useEffect(() => {
     const fetchProcedures = async () => {
       try {
-        const response = await fetch(`${API_URL}/procedures`);
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
-        const data = await response.json();
-        setProcedures(data);
+        const response = await api.get('/procedures');
+        setProcedures(response.data);
       } catch (err) {
         setError('Failed to fetch procedures');
         console.error('Error fetching procedures:', err);

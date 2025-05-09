@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../utils/api';
 
 interface Provider {
   id: string;
@@ -62,9 +63,6 @@ const ProviderList: React.FC = () => {
     }
   });
   
-  // API base URL
-  const API_URL = 'http://localhost:5002/api';
-
   useEffect(() => {
     fetchProviders();
   }, []);
@@ -72,12 +70,8 @@ const ProviderList: React.FC = () => {
   const fetchProviders = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/providers`);
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-      const data = await response.json();
-      setProviders(data);
+      const response = await api.get('/providers');
+      setProviders(response.data);
     } catch (err) {
       setError('Failed to fetch providers');
       console.error('Error fetching providers:', err);
@@ -163,8 +157,8 @@ const ProviderList: React.FC = () => {
     e.preventDefault();
     
     try {
-      let url = `${API_URL}/providers`;
-      let method = 'POST';
+      let url = '/providers';
+      let method = 'post';
       let successMessage = 'Provider added successfully';
       
       // Simple validation
@@ -176,7 +170,7 @@ const ProviderList: React.FC = () => {
       // For edit, use PUT and include the provider ID
       if (modalType === 'edit' && selectedProvider) {
         url = `${url}/${selectedProvider.id}`;
-        method = 'PUT';
+        method = 'put';
         successMessage = 'Provider updated successfully';
       }
       
@@ -189,16 +183,10 @@ const ProviderList: React.FC = () => {
         address: hasAddress ? formData.address : null
       };
       
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(submitData)
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+      if (method === 'post') {
+        await api.post(url, submitData);
+      } else {
+        await api.put(url, submitData);
       }
       
       alert(successMessage);
@@ -215,13 +203,7 @@ const ProviderList: React.FC = () => {
     if (!selectedProvider) return;
     
     try {
-      const response = await fetch(`${API_URL}/providers/${selectedProvider.id}`, {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
+      await api.delete(`/providers/${selectedProvider.id}`);
       
       alert('Provider deleted successfully');
       closeModal();
