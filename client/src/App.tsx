@@ -9,6 +9,7 @@ import UserManagement from './components/UserManagement';
 import Login from './components/Login';
 import ChargeList from './components/ChargeList';
 import api from './utils/api';
+import LoginTest from './components/LoginTest';
 
 interface UserInfo {
   id: string;
@@ -23,8 +24,18 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showLoginTest, setShowLoginTest] = useState(false);
 
   useEffect(() => {
+    // Check URL for login-test parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const testMode = urlParams.get('test');
+    if (testMode === 'login') {
+      setShowLoginTest(true);
+      setLoading(false);
+      return;
+    }
+
     // Check if user is authenticated
     const token = localStorage.getItem('authToken');
     
@@ -65,6 +76,10 @@ function App() {
 
   if (loading) {
     return <div className="App-loading">Loading...</div>;
+  }
+
+  if (showLoginTest) {
+    return <LoginTest />;
   }
 
   if (!isAuthenticated) {
