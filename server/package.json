@@ -1,0 +1,46 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "Backend for healthcare charge entry application",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "prisma generate && tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "db:seed": "ts-node prisma/seed.ts",
+    "create-admin": "ts-node src/scripts/createAdminUser.ts",
+    "test-db": "ts-node src/scripts/testDbConnection.ts"
+  },
+  "keywords": [
+    "healthcare",
+    "billing",
+    "charge-entry"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.10.2",
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "@types/node": "^20.5.6",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/jsonwebtoken": "^9.0.9",
+    "nodemon": "^3.0.1",
+    "prisma": "^5.10.2",
+    "ts-node-dev": "^2.0.0"
+  }
+}

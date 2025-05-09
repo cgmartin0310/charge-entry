@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Patient {
+  id           String    @id @default(uuid())
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime
+  gender       String
+  address      Json      // Stored as JSON { street, city, state, zipCode }
+  phone        String
+  email        String?
+  insuranceInfo Json     // Stored as JSON { primary: {...}, secondary: {...} }
+  provider     Provider? @relation(fields: [providerId], references: [id])
+  providerId   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  charges      Charge[]
+}
+
+model Payer {
+  id              String   @id @default(uuid())
+  name            String
+  payerId         String   @unique
+  address         Json     // Stored as JSON { street, city, state, zipCode }
+  phone           String
+  email           String?
+  electronicPayer Boolean  @default(true)
+  payerType       String   // Enum in application logic: 'Medicare', 'Medicaid', 'Commercial', 'BlueCross', 'Other'
+  defaultProcedure Procedure? @relation("PayerDefaultProcedure", fields: [defaultProcedureId], references: [id])
+  defaultProcedureId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  charges         Charge[]
+}
+
+model Procedure {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  description     String
+  defaultUnits    Int      @default(1)
+  timeBasedBilling Boolean  @default(true)
+  roundingRule    String   @default("up") // 'nearest', 'up', 'down'
+  minutesPerUnit  Int      @default(15)
+  validModifiers  String[] // Array of allowed modifiers
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  charges         Charge[]
+  defaultForPayers Payer[] @relation("PayerDefaultProcedure")
+}
+
+model Charge {
+  id             String   @id @default(uuid())
+  patient        Patient  @relation(fields: [patientId], references: [id])
+  patientId      String
+  serviceDate    DateTime
+  provider       Provider @relation(fields: [providerId], references: [id])
+  providerId     String
+  procedure      Procedure @relation(fields: [procedureId], references: [id])
+  procedureId    String
+  minutes        Int
+  units          Int
+  modifiers      String[]
+  diagnosisCodes String[]
+  chargeAmount   Float
+  status         String   @default("new") // 'new', 'ready', 'submitted', 'denied', 'paid', 'adjustment'
+  payer          Payer    @relation(fields: [payerId], references: [id])
+  payerId        String
+  claimInfo      Json?    // Stored as JSON { claimNumber, submissionDate, responseDate }
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Provider {
+  id              String    @id @default(uuid())
+  firstName       String
+  lastName        String
+  npi             String?   // National Provider Identifier
+  credentials     String?   // e.g., LCSW, LMHC, CPS (Certified Peer Specialist)
+  specialty       String?   // Peer support specialty
+  email           String?
+  phone           String?
+  address         Json?     // Stored as JSON { street, city, state, zipCode }
+  status          String    @default("active") // active, inactive
+  notes           String?
+  charges         Charge[]
+  patients        Patient[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User?     @relation("ProviderUser")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  username        String    @unique
+  passwordHash    String
+  role            String    // 'SUPER_ADMIN', 'ADMIN', 'PROVIDER'
+  provider        Provider? @relation("ProviderUser", fields: [providerId], references: [id])
+  providerId      String?   @unique
+  lastLogin       DateTime?
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
