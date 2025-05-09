@@ -21,26 +21,13 @@ const app = express();
 const PORT = process.env.PORT || 5002;
 const prismaClient = new PrismaClient();
 
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://charge-entry.onrender.com' // Updated Render frontend URL
-];
-
-// Middleware
+// CORS configuration - Accept all origins in development mode
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 
 // Routes
@@ -51,6 +38,20 @@ app.use('/api/payers', payerRoutes);
 app.use('/api/charges', chargeRoutes);
 app.use('/api/procedures', procedureRoutes);
 app.use('/api/providers', providerRoutes);
+
+// Debug route to check the API is accessible
+app.get('/api/debug', (req, res) => {
+  res.json({
+    message: 'API is accessible',
+    time: new Date().toISOString(),
+    nodeEnv: process.env.NODE_ENV,
+    corsEnabled: true,
+    jwt: {
+      secretDefined: !!process.env.JWT_SECRET,
+      secretLength: process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0
+    }
+  });
+});
 
 // Admin setup endpoint - accessible at /api/admin-setup
 app.get('/api/admin-setup', async (req, res) => {
@@ -139,6 +140,58 @@ app.get('/api/reset-admin-password', async (req, res) => {
   } catch (error: any) {
     return res.status(500).json({
       message: 'Error resetting admin password',
+      error: error.message
+    });
+  }
+});
+
+// Test login endpoint directly
+app.post('/api/test-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { provider: true }
+    });
+
+    if (!user || !user.active) {
+      return res.status(401).json({ 
+        message: 'Invalid credentials or inactive account',
+        user: null,
+        passwordMatch: false
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
+        message: 'Invalid credentials - password does not match',
+        user: {
+          email: user.email,
+          username: user.username
+        },
+        passwordMatch: false,
+        passwordHash: user.passwordHash.substring(0, 10) + '...' // First 10 chars for debugging
+      });
+    }
+
+    return res.json({
+      message: 'Login successful via test endpoint',
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role
+      },
+      passwordMatch: true
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: 'Error testing login',
       error: error.message
     });
   }
