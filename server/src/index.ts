@@ -23,7 +23,7 @@ const prismaClient = new PrismaClient();
 // CORS configuration
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://your-frontend-url.onrender.com' // Add your Render frontend URL here
+  'https://charge-entry.onrender.com' // Updated Render frontend URL
 ];
 
 // Middleware
