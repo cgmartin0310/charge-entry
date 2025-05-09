@@ -15,7 +15,8 @@ const api = axios.create({
 // Add a request interceptor to include the auth token in all requests
 api.interceptors.request.use(
   (config) => {
-    console.log('Making request to:', config.baseURL + config.url);
+    console.log('Making request to:', 
+      (config.baseURL || '') + (config.url || ''));
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -35,7 +36,7 @@ api.interceptors.response.use(
     console.log('Response received:', {
       status: response.status,
       statusText: response.statusText,
-      url: response.config.url
+      url: response.config.url || ''
     });
     return response;
   },
