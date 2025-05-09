@@ -4,7 +4,7 @@ import axios from 'axios';
 const LoginTest: React.FC = () => {
   const [email, setEmail] = useState('admin@example.com');
   const [password, setPassword] = useState('Admin123!');
-  const [apiUrl, setApiUrl] = useState(process.env.REACT_APP_API_URL || 'http://localhost:5002/api');
+  const [apiUrl, setApiUrl] = useState(process.env.REACT_APP_API_URL || 'http://localhost:5002');
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ const LoginTest: React.FC = () => {
     setResult(null);
     
     try {
-      const fullUrl = `${apiUrl}/users/login`;
+      const fullUrl = `${apiUrl}/api/users/login`;
       console.log('Making direct login request to:', fullUrl);
       
       const response = await axios.post(fullUrl, { email, password });
@@ -51,7 +51,7 @@ const LoginTest: React.FC = () => {
     setResult(null);
     
     try {
-      const fullUrl = `${apiUrl}/debug`;
+      const fullUrl = `${apiUrl}/api/debug`;
       console.log('Making debug request to:', fullUrl);
       
       const response = await axios.get(fullUrl);
@@ -80,7 +80,7 @@ const LoginTest: React.FC = () => {
     setResult(null);
     
     try {
-      const fullUrl = `${apiUrl}/reset-admin-password`;
+      const fullUrl = `${apiUrl}/api/reset-admin-password`;
       console.log('Making admin reset request to:', fullUrl);
       
       const response = await axios.get(fullUrl);
@@ -109,7 +109,7 @@ const LoginTest: React.FC = () => {
     setResult(null);
     
     try {
-      const fullUrl = `${apiUrl}/test-login`;
+      const fullUrl = `${apiUrl}/api/test-login`;
       console.log('Making test login request to:', fullUrl);
       
       const response = await axios.post(fullUrl, { email, password });
