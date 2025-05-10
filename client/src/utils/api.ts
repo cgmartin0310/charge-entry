@@ -29,7 +29,7 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for debugging
+// Add response interceptor for debugging and token handling
 api.interceptors.response.use(
   (response) => {
     console.log('Response received:', {
@@ -46,6 +46,22 @@ api.interceptors.response.use(
       statusText: error.response?.statusText,
       data: error.response?.data
     });
+
+    // Handle token errors
+    if (error.response?.status === 401 && 
+        (error.response?.data?.message === 'Invalid token' || 
+         error.response?.data?.message === 'Authentication required')) {
+      console.warn('Auth token appears to be invalid or expired. Redirecting to login...');
+      // Clear the invalid token
+      localStorage.removeItem('authToken');
+      
+      // Notify user
+      alert('Your session has expired. Please log in again.');
+      
+      // Redirect to login page
+      window.location.href = '/';
+    }
+    
     return Promise.reject(error);
   }
 );

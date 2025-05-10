@@ -29,7 +29,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET || 'fallback-secret-key',
-      { expiresIn: '24h' }
+      { expiresIn: '8h' }
     );
     
     // Return token and user data (excluding password)
@@ -78,6 +78,40 @@ router.post('/register', async (req, res) => {
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error during registration' });
+  }
+});
+
+// Debug route to verify token
+router.get('/verify-token', async (req, res) => {
+  try {
+    const authHeader = req.header('Authorization');
+    if (!authHeader) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    try {
+      const decoded = jwt.verify(
+        token, 
+        process.env.JWT_SECRET || 'fallback-secret-key'
+      );
+      
+      return res.json({ 
+        valid: true, 
+        decoded,
+        expiresAt: new Date((decoded as any).exp * 1000).toISOString()
+      });
+    } catch (tokenError) {
+      return res.status(401).json({ 
+        valid: false, 
+        error: tokenError.message,
+        token: token.substring(0, 10) + '...' // Show part of the token for debugging
+      });
+    }
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(500).json({ message: 'Server error during token verification' });
   }
 });
 
