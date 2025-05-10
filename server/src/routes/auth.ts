@@ -5,41 +5,11 @@ import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
-// Login route - TEMPORARY simplified version that bypasses database
+// Login route
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // TEMPORARY: Accept any login with valid format
-    // This is ONLY for debugging database connection issues
-    console.log('⚠️ WARNING: Using temporary login bypass for debugging');
-    
-    // Generate JWT token with admin privileges
-    const token = jwt.sign(
-      { 
-        userId: 'temp-admin-id', 
-        email: email || 'admin@example.com', 
-        role: 'SUPER_ADMIN',
-        providerId: null 
-      },
-      process.env.JWT_SECRET || 'fallback-secret-key',
-      { expiresIn: '8h' }
-    );
-    
-    // Return token and user data
-    res.json({ 
-      token, 
-      user: {
-        id: 'temp-admin-id',
-        email: email || 'admin@example.com',
-        username: email?.split('@')[0] || 'admin',
-        role: 'SUPER_ADMIN',
-        providerId: null,
-        active: true
-      }
-    });
-    
-    /* Original login code - temporarily disabled
     // Ensure fresh database connection
     await ensureFreshConnection();
     
@@ -73,7 +43,6 @@ router.post('/login', async (req, res) => {
     // Return token and user data (excluding password)
     const { passwordHash, ...userData } = user;
     res.json({ token, user: userData });
-    */
     
   } catch (error) {
     console.error('Login error:', error);
