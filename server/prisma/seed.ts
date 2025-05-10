@@ -6,8 +6,10 @@ async function main() {
   // Clear existing data
   await prisma.charge.deleteMany({});
   await prisma.patient.deleteMany({});
+  await prisma.provider.deleteMany({});
   await prisma.payer.deleteMany({});
   await prisma.procedure.deleteMany({});
+  await prisma.user.deleteMany({});
 
   console.log('Seeding database...');
 
@@ -92,6 +94,47 @@ async function main() {
 
   console.log('Created procedures');
 
+  // Create providers
+  const provider1 = await prisma.provider.create({
+    data: {
+      firstName: 'Alice',
+      lastName: 'Johnson',
+      npi: '1234567890',
+      credentials: 'MD',
+      specialty: 'Psychiatry',
+      email: 'alice.johnson@example.com',
+      phone: '555-123-4567',
+      address: {
+        street: '789 Medical Center Blvd',
+        city: 'Medicaltown',
+        state: 'TX',
+        zipCode: '75001'
+      },
+      status: 'active'
+    }
+  });
+
+  const provider2 = await prisma.provider.create({
+    data: {
+      firstName: 'Robert',
+      lastName: 'Williams',
+      npi: '0987654321',
+      credentials: 'NP',
+      specialty: 'Mental Health',
+      email: 'robert.williams@example.com',
+      phone: '555-987-6543',
+      address: {
+        street: '456 Healthcare Ave',
+        city: 'Wellness',
+        state: 'CA',
+        zipCode: '90001'
+      },
+      status: 'active'
+    }
+  });
+
+  console.log('Created providers');
+
   // Create patients
   const patient1 = await prisma.patient.create({
     data: {
@@ -113,6 +156,9 @@ async function main() {
           memberId: 'MCR123456789',
           groupNumber: ''
         }
+      },
+      provider: {
+        connect: { id: provider1.id }
       }
     }
   });
@@ -137,6 +183,9 @@ async function main() {
           memberId: 'BCBS987654321',
           groupNumber: 'GRP123'
         }
+      },
+      provider: {
+        connect: { id: provider2.id }
       }
     }
   });
@@ -148,7 +197,9 @@ async function main() {
     data: {
       patientId: patient1.id,
       serviceDate: new Date(),
-      provider: 'Dr. Alice Johnson',
+      provider: {
+        connect: { id: provider1.id }
+      },
       procedureId: procedure1.id,
       minutes: 45,
       units: 3,
@@ -166,7 +217,9 @@ async function main() {
     data: {
       patientId: patient2.id,
       serviceDate: new Date(),
-      provider: 'Dr. Robert Williams',
+      provider: {
+        connect: { id: provider2.id }
+      },
       procedureId: procedure2.id,
       minutes: 60,
       units: 4,
@@ -181,6 +234,19 @@ async function main() {
   });
 
   console.log('Created charges');
+
+  // Create admin user
+  const adminUser = await prisma.user.create({
+    data: {
+      email: 'admin@example.com',
+      username: 'admin',
+      passwordHash: '$2a$10$mFpGojFrQj8L5ORnfFm/4.mSRDrTUXE/j6KRVlR0gExj4qVoJCXwa', // Admin123!
+      role: 'SUPER_ADMIN',
+      active: true
+    }
+  });
+
+  console.log('Created admin user (admin@example.com / Admin123!)');
   console.log('Database seeding completed');
 }
 
