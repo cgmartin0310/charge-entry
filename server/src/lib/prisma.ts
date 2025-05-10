@@ -23,7 +23,7 @@ const prisma = globalForPrisma.prisma || createPrismaClient();
 let isConnected = false;
 
 // Helper function to ensure fresh connection
-async function ensureFreshConnection() {
+export async function ensureFreshConnection() {
   if (isConnected) {
     try {
       // Disconnect to prevent prepared statement conflicts
@@ -73,4 +73,4 @@ process.on('unhandledRejection', (reason, promise) => {
 // Save prisma client in global object in development
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
-export { prisma, ensureFreshConnection }; 
+export { prisma }; 
