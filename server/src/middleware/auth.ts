@@ -30,20 +30,53 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, JWT_SECRET) as UserPayload;
+    
+    try {
+      // Attempt to verify the token
+      const decoded = jwt.verify(token, JWT_SECRET) as UserPayload;
+      
+      // Check if the payload has all required fields
+      if (!decoded.userId || !decoded.role) {
+        return res.status(401).json({ 
+          message: 'Invalid token format',
+          error: 'Token payload missing required fields'
+        });
+      }
 
-    // Check if user exists and is active
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
-    });
+      // Check if user exists and is active
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId }
+      });
 
-    if (!user || !user.active) {
-      return res.status(401).json({ message: 'User not found or inactive' });
+      if (!user || !user.active) {
+        return res.status(401).json({ message: 'User not found or inactive' });
+      }
+
+      // Set user info on request object
+      req.user = decoded;
+      next();
+    } catch (error) {
+      console.error('Token verification error:', error);
+      
+      // Provide more detailed error based on JWT verification failure
+      if (error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ 
+          message: 'Invalid token', 
+          error: error.message
+        });
+      } else if (error instanceof jwt.TokenExpiredError) {
+        return res.status(401).json({ 
+          message: 'Token expired', 
+          error: error.message,
+          expiredAt: error.expiredAt
+        });
+      }
+      
+      res.status(401).json({ 
+        message: 'Invalid token',
+        error: 'Token verification failed'
+      });
     }
-
-    // Set user info on request object
-    req.user = decoded;
-    next();
   } catch (error) {
     console.error('Auth error:', error);
     res.status(401).json({ message: 'Invalid token' });
