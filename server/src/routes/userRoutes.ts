@@ -7,47 +7,6 @@ import { authenticate, authorize } from '../middleware/auth';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
-// TEMPORARY: Emergency admin creation route
-router.get('/create-recovery-admin', async (req: Request, res: Response) => {
-  try {
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email: 'recovery@example.com' }
-    });
-
-    if (existingAdmin) {
-      return res.json({
-        message: 'Recovery admin already exists',
-        email: 'recovery@example.com',
-        password: 'Recovery123!'
-      });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash('Recovery123!', salt);
-
-    // Create recovery admin
-    const admin = await prisma.user.create({
-      data: {
-        email: 'recovery@example.com',
-        username: 'recovery',
-        passwordHash,
-        role: 'SUPER_ADMIN',
-        active: true
-      }
-    });
-
-    return res.json({
-      message: 'Recovery admin created successfully',
-      email: 'recovery@example.com',
-      password: 'Recovery123!'
-    });
-  } catch (error) {
-    console.error('Emergency admin creation error:', error);
-    return res.status(500).json({ message: 'Failed to create recovery admin', error });
-  }
-});
-
 // Login route
 router.post('/login', async (req: Request, res: Response) => {
   try {
