@@ -331,56 +331,61 @@ const SimpleChargeEntry: React.FC<SimpleChargeEntryProps> = ({ currentUser }) =>
         
         <div className="form-section">
           <h3>3. Service Details</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="serviceDate">Service Date:</label>
-              <DatePicker
-                selected={chargeData.serviceDate}
-                onChange={handleDateChange}
-                dateFormat="MM/dd/yyyy"
-                className="form-control"
-                maxDate={new Date()}
-                required
-              />
+          
+          <div className="service-details-container">
+            <div className="date-section">
+              <div className="form-group">
+                <label htmlFor="serviceDate">Service Date:</label>
+                <DatePicker
+                  selected={chargeData.serviceDate}
+                  onChange={handleDateChange}
+                  dateFormat="MM/dd/yyyy"
+                  className="form-control"
+                  maxDate={new Date()}
+                  required
+                />
+              </div>
             </div>
             
-            <div className="form-group">
-              <label htmlFor="minutes">Minutes:</label>
-              <div className="minutes-buttons">
-                <button
-                  type="button"
-                  className={`time-button ${chargeData.minutes === 15 ? 'active' : ''}`}
-                  onClick={() => handleMinutesSelection(15)}
-                >
-                  0-15 minutes
-                </button>
-                <button
-                  type="button"
-                  className={`time-button ${chargeData.minutes === 30 ? 'active' : ''}`}
-                  onClick={() => handleMinutesSelection(30)}
-                >
-                  16-30 minutes
-                </button>
-                <button
-                  type="button"
-                  className={`time-button ${chargeData.minutes === 45 ? 'active' : ''}`}
-                  onClick={() => handleMinutesSelection(45)}
-                >
-                  31-45 minutes
-                </button>
-                <button
-                  type="button"
-                  className={`time-button ${chargeData.minutes === 60 ? 'active' : ''}`}
-                  onClick={() => handleMinutesSelection(60)}
-                >
-                  46-60 minutes
-                </button>
-              </div>
-              {chargeData.minutes > 0 && procedures.find(p => p.id === chargeData.procedureId)?.timeBasedBilling && (
-                <div className="units-calculated">
-                  Will bill: {Math.max(1, Math.ceil(chargeData.minutes / (procedures.find(p => p.id === chargeData.procedureId)?.minutesPerUnit || 15)))} units
+            <div className="minutes-section">
+              <div className="form-group">
+                <label htmlFor="minutes">Minutes:</label>
+                <div className="minutes-buttons">
+                  <button
+                    type="button"
+                    className={`time-button ${chargeData.minutes === 15 ? 'active' : ''}`}
+                    onClick={() => handleMinutesSelection(15)}
+                  >
+                    0-15 min
+                  </button>
+                  <button
+                    type="button"
+                    className={`time-button ${chargeData.minutes === 30 ? 'active' : ''}`}
+                    onClick={() => handleMinutesSelection(30)}
+                  >
+                    16-30 min
+                  </button>
+                  <button
+                    type="button"
+                    className={`time-button ${chargeData.minutes === 45 ? 'active' : ''}`}
+                    onClick={() => handleMinutesSelection(45)}
+                  >
+                    31-45 min
+                  </button>
+                  <button
+                    type="button"
+                    className={`time-button ${chargeData.minutes === 60 ? 'active' : ''}`}
+                    onClick={() => handleMinutesSelection(60)}
+                  >
+                    46-60 min
+                  </button>
                 </div>
-              )}
+                {chargeData.minutes > 0 && procedures.find(p => p.id === chargeData.procedureId)?.timeBasedBilling && (
+                  <div className="units-calculated">
+                    Will bill: {Math.max(1, Math.ceil(chargeData.minutes / (procedures.find(p => p.id === chargeData.procedureId)?.minutesPerUnit || 15)))} units
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
