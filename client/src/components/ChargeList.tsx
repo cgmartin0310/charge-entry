@@ -144,18 +144,10 @@ const ChargeList: React.FC = () => {
 
   const getStatusClass = (status: string) => {
     switch (status) {
-      case 'new':
-        return 'status-new';
       case 'ready':
         return 'status-ready';
       case 'submitted':
         return 'status-submitted';
-      case 'denied':
-        return 'status-denied';
-      case 'paid':
-        return 'status-paid';
-      case 'adjustment':
-        return 'status-adjustment';
       default:
         return '';
     }
@@ -179,12 +171,8 @@ const ChargeList: React.FC = () => {
               className="form-control"
             >
               <option value="">All Statuses</option>
-              <option value="new">New</option>
               <option value="ready">Ready</option>
               <option value="submitted">Submitted</option>
-              <option value="denied">Denied</option>
-              <option value="paid">Paid</option>
-              <option value="adjustment">Adjustment</option>
             </select>
           </div>
           <button 

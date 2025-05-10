@@ -246,21 +246,38 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
   }
 });
 
-// Generate claim file for charges - admin only
-router.post('/generate-claim', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), async (req: Request, res: Response) => {
+// Generate claim file for charges
+router.post('/generate-claim', authenticate, async (req: Request, res: Response) => {
   try {
-    // This is a placeholder for the actual claim generation logic
-    // In a real application, you would implement logic to generate
-    // an X12 837 file or other format required by the clearinghouse
+    // This will eventually integrate with a clearinghouse in the future
+    // For now, it just updates the charge status to 'submitted'
     
     const chargeIds = req.body.chargeIds;
     if (!chargeIds || !Array.isArray(chargeIds) || chargeIds.length === 0) {
       return res.status(400).json({ message: 'No charges selected for claim generation' });
     }
     
+    // For providers, ensure they can only update their own charges
+    if (req.user?.role === 'PROVIDER' && req.user.providerId) {
+      // Verify the charges belong to this provider
+      const chargesCount = await prisma.charge.count({
+        where: {
+          id: { in: chargeIds },
+          providerId: req.user.providerId
+        }
+      });
+      
+      if (chargesCount !== chargeIds.length) {
+        return res.status(403).json({ message: 'You can only generate claims for your own charges' });
+      }
+    }
+    
     // Update the status of these charges to "submitted"
     await prisma.charge.updateMany({
-      where: { id: { in: chargeIds } },
+      where: { 
+        id: { in: chargeIds },
+        status: 'ready' // Only ready charges can be submitted
+      },
       data: { 
         status: 'submitted',
         claimInfo: {
@@ -270,12 +287,12 @@ router.post('/generate-claim', authenticate, authorize(['SUPER_ADMIN', 'ADMIN'])
     });
     
     res.status(200).json({ 
-      message: 'Claim file generated successfully',
-      claimSubmissionDate: new Date(),
+      message: 'Charges marked as submitted successfully',
+      submissionDate: new Date(),
       chargesIncluded: chargeIds.length
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error generating claim file', error });
+    res.status(500).json({ message: 'Error submitting charges', error });
   }
 });
 
@@ -339,7 +356,7 @@ router.put('/:id', authenticate, restrictToOwnCharges, async (req: Request, res:
 // Delete charge - providers can delete their own charges, admins can delete any
 router.delete('/:id', authenticate, restrictToOwnCharges, async (req: Request, res: Response) => {
   try {
-    // For providers, only allow deleting new charges (not submitted or paid)
+    // For providers, only allow deleting ready charges (not submitted)
     if (req.user?.role === 'PROVIDER' && req.user.providerId) {
       const charge = await prisma.charge.findUnique({
         where: { id: req.params.id }
@@ -349,9 +366,9 @@ router.delete('/:id', authenticate, restrictToOwnCharges, async (req: Request, r
         return res.status(404).json({ message: 'Charge not found' });
       }
       
-      if (!['new', 'ready'].includes(charge.status)) {
+      if (charge.status !== 'ready') {
         return res.status(403).json({ 
-          message: 'You can only delete charges that have not been submitted or paid'
+          message: 'You can only delete charges that have not been submitted'
         });
       }
     }

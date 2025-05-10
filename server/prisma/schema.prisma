@@ -75,7 +75,7 @@ model Charge {
   modifiers      String[]
   diagnosisCodes String[]
   chargeAmount   Float
-  status         String   @default("new") // 'new', 'ready', 'submitted', 'denied', 'paid', 'adjustment'
+  status         String   @default("ready") // Only 'ready' and 'submitted' are valid statuses
   payer          Payer    @relation(fields: [payerId], references: [id])
   payerId        String
   claimInfo      Json?    // Stored as JSON { claimNumber, submissionDate, responseDate }

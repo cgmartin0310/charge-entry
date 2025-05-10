@@ -96,7 +96,7 @@ const ChargeEntry: React.FC = () => {
     modifiers: [],
     diagnosisCodes: [],
     chargeAmount: 0,
-    status: 'new',
+    status: 'ready',
     payerId: '',
     notes: ''
   });
@@ -183,10 +183,8 @@ const ChargeEntry: React.FC = () => {
 
   const getStatusClass = (status: string) => {
     switch (status) {
-      case 'new': return 'status-new';
+      case 'ready': return 'status-ready';
       case 'submitted': return 'status-submitted';
-      case 'paid': return 'status-paid';
-      case 'denied': return 'status-denied';
       default: return '';
     }
   };
@@ -224,7 +222,7 @@ const ChargeEntry: React.FC = () => {
         modifiers: [],
         diagnosisCodes: [],
         chargeAmount: 0,
-        status: 'new',
+        status: 'ready',
         payerId: '',
         notes: ''
       });
@@ -519,12 +517,8 @@ const ChargeEntry: React.FC = () => {
                       onChange={handleInputChange} 
                       required
                     >
-                      <option value="new">New</option>
                       <option value="ready">Ready</option>
                       <option value="submitted">Submitted</option>
-                      <option value="denied">Denied</option>
-                      <option value="paid">Paid</option>
-                      <option value="adjustment">Adjustment</option>
                     </select>
                   </div>
                 </div>
