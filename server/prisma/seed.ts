@@ -195,12 +195,16 @@ async function main() {
   // Create charges
   const charge1 = await prisma.charge.create({
     data: {
-      patientId: patient1.id,
+      patient: {
+        connect: { id: patient1.id }
+      },
       serviceDate: new Date(),
       provider: {
         connect: { id: provider1.id }
       },
-      procedureId: procedure1.id,
+      procedure: {
+        connect: { id: procedure1.id }
+      },
       minutes: 45,
       units: 3,
       modifiers: ['GT'],
@@ -217,12 +221,16 @@ async function main() {
 
   const charge2 = await prisma.charge.create({
     data: {
-      patientId: patient2.id,
+      patient: {
+        connect: { id: patient2.id }
+      },
       serviceDate: new Date(),
       provider: {
         connect: { id: provider2.id }
       },
-      procedureId: procedure2.id,
+      procedure: {
+        connect: { id: procedure2.id }
+      },
       minutes: 60,
       units: 4,
       modifiers: ['GT', 'HQ'],
