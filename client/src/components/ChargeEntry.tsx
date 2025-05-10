@@ -564,15 +564,12 @@ const ChargeEntry: React.FC = () => {
   return (
     <div>
       <h2>Charge Entry</h2>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+      <div style={{ marginBottom: '1rem' }}>
         <button 
           className="btn btn-primary"
           onClick={() => openModal('add')}
         >
           New Charge
-        </button>
-        <button className="btn btn-success">
-          Generate Claim File
         </button>
       </div>
       

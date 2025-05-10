@@ -37,7 +37,6 @@ const ChargeList: React.FC = () => {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCharges, setSelectedCharges] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [patients, setPatients] = useState([]);
   const [procedures, setProcedures] = useState([]);
@@ -100,46 +99,8 @@ const ChargeList: React.FC = () => {
     }
   };
 
-  const handleSelectCharge = (chargeId: string) => {
-    if (selectedCharges.includes(chargeId)) {
-      setSelectedCharges(selectedCharges.filter(id => id !== chargeId));
-    } else {
-      setSelectedCharges([...selectedCharges, chargeId]);
-    }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedCharges.length === charges.length) {
-      setSelectedCharges([]);
-    } else {
-      setSelectedCharges(charges.map(charge => charge.id));
-    }
-  };
-
   const handleStatusFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setStatusFilter(e.target.value);
-  };
-
-  const handleGenerateClaim = async () => {
-    if (selectedCharges.length === 0) {
-      setError('Please select at least one charge to generate a claim');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await api.post('/charges/generate-claim', { chargeIds: selectedCharges });
-      
-      // Refresh charges list
-      fetchCharges();
-      setSelectedCharges([]);
-      setError(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to generate claim');
-      console.error('Error generating claim:', err);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const getStatusClass = (status: string) => {
@@ -175,13 +136,6 @@ const ChargeList: React.FC = () => {
               <option value="submitted">Submitted</option>
             </select>
           </div>
-          <button 
-            className="btn btn-primary"
-            onClick={handleGenerateClaim}
-            disabled={selectedCharges.length === 0}
-          >
-            Generate Claim
-          </button>
         </div>
       </div>
 
@@ -193,13 +147,6 @@ const ChargeList: React.FC = () => {
         <table className="data-table">
           <thead>
             <tr>
-              <th>
-                <input 
-                  type="checkbox" 
-                  checked={charges.length > 0 && selectedCharges.length === charges.length}
-                  onChange={handleSelectAll}
-                />
-              </th>
               <th>Patient</th>
               <th>Service Date</th>
               <th>Provider</th>
@@ -213,13 +160,6 @@ const ChargeList: React.FC = () => {
           <tbody>
             {charges.map(charge => (
               <tr key={charge.id}>
-                <td>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedCharges.includes(charge.id)}
-                    onChange={() => handleSelectCharge(charge.id)}
-                  />
-                </td>
                 <td>{`${charge.patient.lastName}, ${charge.patient.firstName}`}</td>
                 <td>{new Date(charge.serviceDate).toLocaleDateString()}</td>
                 <td>{`${charge.provider.lastName}, ${charge.provider.firstName}`}</td>
