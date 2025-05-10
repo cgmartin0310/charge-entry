@@ -162,14 +162,11 @@ const SimpleChargeEntry: React.FC<SimpleChargeEntryProps> = ({ currentUser }) =>
     }
   };
 
-  const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const minutes = parseInt(e.target.value);
-    if (!isNaN(minutes)) {
-      setChargeData(prev => ({
-        ...prev,
-        minutes
-      }));
-    }
+  const handleMinutesSelection = (minutesValue: number) => {
+    setChargeData(prev => ({
+      ...prev,
+      minutes: minutesValue
+    }));
   };
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -349,15 +346,36 @@ const SimpleChargeEntry: React.FC<SimpleChargeEntryProps> = ({ currentUser }) =>
             
             <div className="form-group">
               <label htmlFor="minutes">Minutes:</label>
-              <input 
-                type="number" 
-                id="minutes" 
-                value={chargeData.minutes || ''} 
-                onChange={handleMinutesChange}
-                className="form-control"
-                min="1"
-                required
-              />
+              <div className="minutes-buttons">
+                <button
+                  type="button"
+                  className={`time-button ${chargeData.minutes === 15 ? 'active' : ''}`}
+                  onClick={() => handleMinutesSelection(15)}
+                >
+                  0-15 minutes
+                </button>
+                <button
+                  type="button"
+                  className={`time-button ${chargeData.minutes === 30 ? 'active' : ''}`}
+                  onClick={() => handleMinutesSelection(30)}
+                >
+                  16-30 minutes
+                </button>
+                <button
+                  type="button"
+                  className={`time-button ${chargeData.minutes === 45 ? 'active' : ''}`}
+                  onClick={() => handleMinutesSelection(45)}
+                >
+                  31-45 minutes
+                </button>
+                <button
+                  type="button"
+                  className={`time-button ${chargeData.minutes === 60 ? 'active' : ''}`}
+                  onClick={() => handleMinutesSelection(60)}
+                >
+                  46-60 minutes
+                </button>
+              </div>
               {chargeData.minutes > 0 && procedures.find(p => p.id === chargeData.procedureId)?.timeBasedBilling && (
                 <div className="units-calculated">
                   Will bill: {Math.max(1, Math.ceil(chargeData.minutes / (procedures.find(p => p.id === chargeData.procedureId)?.minutesPerUnit || 15)))} units
