@@ -94,7 +94,10 @@ function App() {
     <div className="App">
       <header className="App-header">
         <div className="header-top">
-          <h1>Healthcare Charge Entry</h1>
+          <div className="brand-container">
+            <img src="/paragon-logo.png" alt="Paragon Logo" className="brand-logo" />
+            <h1>Charge Entry System</h1>
+          </div>
           <div className="user-info">
             <span className="username">{user?.username}</span>
             <span className="role-badge">{user?.role}</span>

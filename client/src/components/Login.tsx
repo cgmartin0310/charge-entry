@@ -42,7 +42,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   return (
     <div className="login-container">
       <div className="login-form-wrapper">
-        <h2>Healthcare Charge Entry</h2>
+        <div className="login-brand">
+          <img src="/paragon-logo.png" alt="Paragon Logo" className="login-logo" />
+          <h2>Charge Entry System</h2>
+        </div>
         <h3>Login</h3>
         
         {error && <div className="error-message">{error}</div>}
