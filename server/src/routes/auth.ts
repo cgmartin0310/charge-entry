@@ -1,5 +1,5 @@
 import express from 'express';
-import { prisma } from '../lib/prisma';
+import { prisma, ensureFreshConnection } from '../lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -8,6 +8,9 @@ const router = express.Router();
 // Login route
 router.post('/login', async (req, res) => {
   try {
+    // Ensure fresh database connection
+    await ensureFreshConnection();
+    
     const { email, password } = req.body;
     
     // Find user by email

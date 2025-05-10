@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { prisma, testDatabaseConnection } from './lib/prisma';
+import { prisma, testDatabaseConnection, ensureFreshConnection } from './lib/prisma';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -56,6 +56,9 @@ app.get('/api/debug', (req, res) => {
 // Admin setup endpoint - accessible at /api/admin-setup
 app.get('/api/admin-setup', async (req, res) => {
   try {
+    // Ensure fresh database connection
+    await ensureFreshConnection();
+    
     // Check if super admin already exists
     const existingAdmin = await prisma.user.findFirst({
       where: { role: 'SUPER_ADMIN' }
@@ -109,6 +112,9 @@ app.get('/api/admin-setup', async (req, res) => {
 // Reset admin password endpoint
 app.get('/api/reset-admin-password', async (req, res) => {
   try {
+    // Ensure fresh database connection
+    await ensureFreshConnection();
+    
     // Find the admin user
     const adminUser = await prisma.user.findFirst({
       where: { role: 'SUPER_ADMIN' }

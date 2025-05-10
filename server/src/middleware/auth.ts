@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { prisma, ensureFreshConnection } from '../lib/prisma';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
 interface UserPayload {
@@ -42,6 +42,9 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
           error: 'Token payload missing required fields'
         });
       }
+
+      // Ensure fresh database connection
+      await ensureFreshConnection();
 
       // Check if user exists and is active
       const user = await prisma.user.findUnique({

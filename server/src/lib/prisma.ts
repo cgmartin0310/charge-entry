@@ -4,31 +4,50 @@ import { PrismaClient } from '@prisma/client';
 // exhausting your database connection limit.
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-// Add retry and connection pooling logic
-const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
+// Function to create and configure Prisma client
+function createPrismaClient() {
+  return new PrismaClient({
+    log: ['error'],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
     },
-  },
-  // Add additional Prisma client options like connection pooling
-});
+  });
+}
 
-// Middleware to handle connection issues
-prisma.$use(async (params, next) => {
-  try {
-    return await next(params);
-  } catch (error) {
-    // Log and handle database connection errors
-    console.error('Database operation failed:', error);
-    throw error;
+// Reuse PrismaClient instance or create a new one
+const prisma = globalForPrisma.prisma || createPrismaClient();
+
+// Fix for "prepared statement already exists" error
+let isConnected = false;
+
+// Helper function to ensure fresh connection
+async function ensureFreshConnection() {
+  if (isConnected) {
+    try {
+      // Disconnect to prevent prepared statement conflicts
+      await prisma.$disconnect();
+      isConnected = false;
+    } catch (e) {
+      console.error("Error disconnecting from database:", e);
+    }
   }
-});
+  
+  try {
+    // Test connection
+    await prisma.$connect();
+    isConnected = true;
+  } catch (e) {
+    console.error("Error connecting to database:", e);
+    throw e;
+  }
+}
 
 // Function to test database connection
 export async function testDatabaseConnection() {
   try {
+    await ensureFreshConnection();
     // Simple query to test connection
     await prisma.$queryRaw`SELECT 1`;
     console.log('Database connection successful');
@@ -39,11 +58,19 @@ export async function testDatabaseConnection() {
   }
 }
 
-// Global error handler
+// Handle Node.js process events
+process.on('beforeExit', async () => {
+  // Close database connections before exiting
+  await prisma.$disconnect();
+  isConnected = false;
+});
+
+// Unhandled rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+// Save prisma client in global object in development
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
-export { prisma }; 
+export { prisma, ensureFreshConnection }; 

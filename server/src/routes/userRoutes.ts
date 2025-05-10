@@ -1,16 +1,18 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma, ensureFreshConnection } from '../lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { authenticate, authorize } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
 // Login route
 router.post('/login', async (req: Request, res: Response) => {
   try {
+    // Ensure fresh database connection
+    await ensureFreshConnection();
+    
     const { email, password } = req.body;
 
     // Validate request
