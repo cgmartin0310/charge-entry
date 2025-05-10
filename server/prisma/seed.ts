@@ -207,7 +207,9 @@ async function main() {
       diagnosisCodes: ['F41.9'],
       chargeAmount: 75.00,
       status: 'new',
-      payerId: medicare.id,
+      payer: {
+        connect: { id: medicare.id }
+      },
       claimInfo: {},
       notes: 'Initial peer support session'
     }
@@ -227,7 +229,9 @@ async function main() {
       diagnosisCodes: ['F33.1'],
       chargeAmount: 100.00,
       status: 'new',
-      payerId: blueCross.id,
+      payer: {
+        connect: { id: blueCross.id }
+      },
       claimInfo: {},
       notes: 'Group session with good participation'
     }
