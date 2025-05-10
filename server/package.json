@@ -15,6 +15,9 @@
     "create-admin": "ts-node src/scripts/createAdminUser.ts",
     "test-db": "ts-node src/scripts/testDbConnection.ts"
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "keywords": [
     "healthcare",
     "billing",
