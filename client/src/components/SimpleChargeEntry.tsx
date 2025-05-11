@@ -61,6 +61,7 @@ const SimpleChargeEntry: React.FC<SimpleChargeEntryProps> = ({ currentUser }) =>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showHelpPopup, setShowHelpPopup] = useState<boolean>(false);
   const [chargeData, setChargeData] = useState<ChargeData>({
     patientId: '',
     serviceDate: new Date(),
@@ -176,6 +177,10 @@ const SimpleChargeEntry: React.FC<SimpleChargeEntryProps> = ({ currentUser }) =>
     }));
   };
 
+  const toggleHelpPopup = () => {
+    setShowHelpPopup(!showHelpPopup);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -252,23 +257,42 @@ const SimpleChargeEntry: React.FC<SimpleChargeEntryProps> = ({ currentUser }) =>
 
   return (
     <div className="simple-charge-entry">
-      <h2>Quick Charge Entry</h2>
-      
-      <div className="quick-entry-explanation">
-        <h3>Welcome to Simplified Charge Entry</h3>
-        <p>
-          This streamlined interface helps you quickly record peer support services with just a few clicks:
-        </p>
-        <ol>
-          <li><strong>Select Provider</strong> - Choose a provider to filter the patient list</li>
-          <li><strong>Select Patient</strong> - Pick the client who received services</li>
-          <li><strong>Choose Date</strong> - Select when the service was provided</li>
-          <li><strong>Enter Minutes</strong> - Record the time spent (automatically converts to units)</li>
-        </ol>
-        <p className="notice">
-          The system will automatically use the patient's primary insurance and calculate appropriate billing units.
-        </p>
+      <div className="entry-header">
+        <h2>Quick Charge Entry</h2>
+        <button 
+          type="button" 
+          className="help-button" 
+          onClick={toggleHelpPopup}
+          aria-label="Help information"
+        >
+          <span className="help-icon">?</span>
+        </button>
       </div>
+      
+      {showHelpPopup && (
+        <div className="help-popup-overlay" onClick={toggleHelpPopup}>
+          <div className="help-popup-content" onClick={e => e.stopPropagation()}>
+            <div className="help-popup-header">
+              <h3>Welcome to Simplified Charge Entry</h3>
+              <button className="close-button" onClick={toggleHelpPopup}>&times;</button>
+            </div>
+            <div className="help-popup-body">
+              <p>
+                This streamlined interface helps you quickly record peer support services with just a few clicks:
+              </p>
+              <ol>
+                <li><strong>Select Provider</strong> - Choose a provider to filter the patient list</li>
+                <li><strong>Select Patient</strong> - Pick the client who received services</li>
+                <li><strong>Choose Date</strong> - Select when the service was provided</li>
+                <li><strong>Enter Minutes</strong> - Record the time spent (automatically converts to units)</li>
+              </ol>
+              <p className="notice">
+                The system will automatically use the patient's primary insurance and calculate appropriate billing units.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}

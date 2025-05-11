@@ -347,11 +347,137 @@ input, select, textarea {
   padding: 20px;
 }
 
+.entry-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
+}
+
 .simple-charge-entry h2 {
   color: #2c3e50;
   font-size: 28px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   text-align: center;
+}
+
+.help-button {
+  background-color: #4299e1;
+  color: white;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 12px;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+}
+
+.help-button:hover {
+  background-color: #3182ce;
+  transform: scale(1.05);
+}
+
+.help-icon {
+  line-height: 1;
+}
+
+.help-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.help-popup-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  animation: popup-fade-in 0.3s ease-out;
+}
+
+@keyframes popup-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.help-popup-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.help-popup-header h3 {
+  margin: 0;
+  color: #2c5282;
+  font-size: 20px;
+}
+
+.close-button {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #a0aec0;
+  transition: color 0.2s;
+}
+
+.close-button:hover {
+  color: #718096;
+}
+
+.help-popup-body {
+  padding: 20px;
+}
+
+.help-popup-body p {
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.help-popup-body ol, 
+.help-popup-body ul {
+  margin: 10px 0;
+  padding-left: 25px;
+}
+
+.help-popup-body li {
+  margin-bottom: 8px;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.help-popup-body .notice {
+  background-color: #ebf8ff;
+  border-left: 4px solid #4299e1;
+  padding: 10px 15px;
+  margin-top: 15px;
+  border-radius: 4px;
 }
 
 .loading-indicator {
@@ -399,6 +525,26 @@ input, select, textarea {
   padding: 10px 15px;
   margin-top: 15px;
   border-radius: 4px;
+}
+
+/* Mobile responsiveness for help popup */
+@media (max-width: 600px) {
+  .help-popup-content {
+    width: 95%;
+    max-height: 80vh;
+  }
+  
+  .help-popup-header {
+    padding: 12px 15px;
+  }
+  
+  .help-popup-header h3 {
+    font-size: 18px;
+  }
+  
+  .help-popup-body {
+    padding: 15px;
+  }
 }
 
 .simple-form {
