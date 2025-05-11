@@ -33,51 +33,53 @@ export interface ExtractedPatientData {
  */
 export const extractPatientDataFromImage = async (imageData: string): Promise<ExtractedPatientData> => {
   try {
-    // For development/demonstration purposes, we're using a mock response
-    // In production, replace this with the actual API call to Grok
-
-    // Example API call to Grok (commented out until the actual integration)
-    /*
-    const response = await fetch('https://api.grok.ai/document-extraction', {
+    // Real Grok API integration using OpenAI's GPT-4 Vision API
+    const apiKey = process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('API key not found. Please check environment variables.');
+    }
+    
+    console.log('Sending image to GPT-4 Vision API...');
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.REACT_APP_GROK_API_KEY}`
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        image: imageData.split(',')[1], // Remove the data URL prefix
-        documentType: 'medical_id'
+        model: "gpt-4-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Extract patient information from this image. Include as many details as possible such as full name, date of birth, gender, address, phone, email, insurance ID, and insurance provider name. Return ONLY a valid JSON object with these fields: firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider."
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageData
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 1000
       })
     });
 
     if (!response.ok) {
-      throw new Error(`Grok API error: ${response.status}`);
+      const errorData = await response.json();
+      console.error('API error details:', errorData);
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
-    return mapGrokResponseToPatientData(data);
-    */
-
-    // For now, return mock data after a delay to simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    return {
-      firstName: "John",
-      lastName: "Doe",
-      dateOfBirth: "1985-05-15",
-      gender: "male",
-      phone: "555-123-4567",
-      email: "john.doe@example.com",
-      address: {
-        street: "123 Main St",
-        city: "Anytown",
-        state: "CA",
-        zipCode: "90210"
-      },
-      insuranceId: "INS12345678",
-      insuranceProvider: "Blue Cross Blue Shield"
-    };
-    
+    console.log('Response received from GPT-4 Vision API');
+    return parseAPIResponse(data);
   } catch (error) {
     console.error('Error extracting patient data:', error);
     throw error;
@@ -85,20 +87,51 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
 };
 
 /**
- * Maps the Grok API response to our internal patient data format
- * This function would parse the Grok-specific response format to our application format
+ * Parses the API response content
+ * This extracts the JSON data from the text response
  * 
- * @param grokResponse Raw response from Grok API
+ * @param apiResponse Raw response from the Vision API
  * @returns Formatted patient data
  */
-const mapGrokResponseToPatientData = (grokResponse: any): ExtractedPatientData => {
-  // This is a placeholder for the actual mapping logic
-  // The real implementation would depend on the specific format of the Grok API response
-  
-  return {
-    firstName: grokResponse.extracted_data?.first_name,
-    lastName: grokResponse.extracted_data?.last_name,
-    dateOfBirth: grokResponse.extracted_data?.date_of_birth,
-    // Map other fields accordingly...
-  };
+const parseAPIResponse = (apiResponse: any): ExtractedPatientData => {
+  try {
+    // Get the content from the response
+    const content = apiResponse.choices[0].message.content;
+    console.log('Parsing response content:', content);
+    
+    // Try to extract JSON from the response text
+    // The response might be a mix of text and JSON
+    let jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[0];
+      console.log('Extracted JSON:', jsonStr);
+      const extractedData = JSON.parse(jsonStr);
+      
+      // Map to our expected format
+      return {
+        firstName: extractedData.firstName || extractedData.first_name,
+        lastName: extractedData.lastName || extractedData.last_name,
+        dateOfBirth: extractedData.dateOfBirth || extractedData.date_of_birth || extractedData.dob,
+        gender: extractedData.gender,
+        phone: extractedData.phone || extractedData.phoneNumber || extractedData.phone_number,
+        email: extractedData.email,
+        address: {
+          street: extractedData.address?.street || extractedData.street,
+          city: extractedData.address?.city || extractedData.city,
+          state: extractedData.address?.state || extractedData.state,
+          zipCode: extractedData.address?.zipCode || extractedData.address?.zip || extractedData.zipCode || extractedData.zip
+        },
+        insuranceId: extractedData.insuranceId || extractedData.insurance_id || extractedData.memberId || extractedData.member_id,
+        insuranceProvider: extractedData.insuranceProvider || extractedData.insurance_provider || extractedData.insurance
+      };
+    }
+    
+    // If no JSON found, return empty object
+    console.error('Could not extract JSON from response');
+    return {};
+    
+  } catch (error) {
+    console.error('Error parsing response:', error);
+    return {};
+  }
 }; 
