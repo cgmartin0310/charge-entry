@@ -27,17 +27,100 @@
 .App-header h1 {
   margin-top: 0;
   color: #2c3e50;
+  margin-bottom: 0;
+  font-size: 1.5rem;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
 }
 
+.mobile-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.username {
+  font-weight: 600;
+}
+
+.role-badge {
+  background-color: #e9ecef;
+  color: #495057;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.logout-btn {
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.375rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background-color: #e9ecef;
+}
+
+/* Mobile Menu Toggle */
+.mobile-menu-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 30px;
+  height: 21px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
+}
+
+.mobile-menu-toggle span {
+  width: 100%;
+  height: 3px;
+  background-color: #333;
+  border-radius: 10px;
+  transition: all 0.3s linear;
+}
+
+.mobile-menu-toggle.active span:first-child {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+
+.mobile-menu-toggle.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.mobile-menu-toggle.active span:last-child {
+  transform: rotate(-45deg) translate(5px, -5px);
+}
+
+/* Navigation */
 nav {
   display: flex;
   justify-content: center;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-top: 1rem;
 }
 
-button {
+nav button {
   background-color: #f8f9fa;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -45,16 +128,118 @@ button {
   cursor: pointer;
   font-size: 1rem;
   transition: all 0.2s;
+  margin-bottom: 0.5rem;
 }
 
-button:hover {
+nav button:hover {
   background-color: #e9ecef;
 }
 
-button.active {
+nav button.active {
   background-color: #4285f4;
   color: white;
   border-color: #4285f4;
+}
+
+/* Brand styling */
+.brand-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  height: 40px;
+  width: auto;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 768px) {
+  .App {
+    padding: 0.5rem;
+  }
+
+  .App-header {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .brand-logo {
+    height: 32px;
+  }
+
+  .App-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .header-top {
+    margin-bottom: 0.5rem;
+  }
+
+  .mobile-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .user-info {
+    gap: 0.5rem;
+    order: 2;
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+
+  .username {
+    font-size: 0.875rem;
+  }
+
+  .role-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .logout-btn {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+    order: 1;
+  }
+
+  nav {
+    flex-direction: column;
+    align-items: stretch;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+    margin-top: 0;
+  }
+
+  nav.open {
+    max-height: 500px;
+  }
+
+  nav button {
+    width: 100%;
+    margin-bottom: 0.25rem;
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .App-header h1 {
+    font-size: 1.1rem;
+  }
+
+  .brand-logo {
+    height: 28px;
+  }
+
+  .user-info {
+    font-size: 0.8rem;
+  }
 }
 
 main {
@@ -482,47 +667,6 @@ input, select, textarea {
   color: #6c757d;
 }
 
-/* Header with user info */
-.header-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.username {
-  font-weight: 600;
-}
-
-.role-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  background-color: #e9ecef;
-}
-
-.logout-btn {
-  background-color: transparent;
-  border: 1px solid #dc3545;
-  color: #dc3545;
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.logout-btn:hover {
-  background-color: #dc3545;
-  color: white;
-}
-
 /* User Management Styles */
 .user-management {
   width: 100%;
@@ -778,18 +922,6 @@ input, select, textarea {
   min-height: 40px;
   display: flex;
   align-items: center;
-}
-
-/* Brand styling */
-.brand-container {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.brand-logo {
-  height: 50px;
-  width: auto;
 }
 
 /* Login screen branding */

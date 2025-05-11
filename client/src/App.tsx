@@ -25,6 +25,7 @@ function App() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [showLoginTest, setShowLoginTest] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     // Check URL for login-test parameter
@@ -74,6 +75,15 @@ function App() {
     setActiveTab('quickEntry');
   };
 
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const handleNavClick = (tab: string) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false); // Close mobile menu when a nav item is clicked
+  };
+
   if (loading) {
     return <div className="App-loading">Loading...</div>;
   }
@@ -96,36 +106,47 @@ function App() {
         <div className="header-top">
           <div className="brand-container">
             <img src="/paragon-logo.png" alt="Paragon Logo" className="brand-logo" />
-            <h1>Charge Entry System</h1>
+            <h1>Charge Entry</h1>
           </div>
-          <div className="user-info">
-            <span className="username">{user?.username}</span>
-            <span className="role-badge">{user?.role}</span>
-            <button className="logout-btn" onClick={handleLogout}>Logout</button>
+          <div className="mobile-controls">
+            <div className="user-info">
+              <span className="username">{user?.username}</span>
+              <span className="role-badge">{user?.role}</span>
+              <button className="logout-btn" onClick={handleLogout}>Logout</button>
+            </div>
+            <button 
+              className={`mobile-menu-toggle ${mobileMenuOpen ? 'active' : ''}`}
+              onClick={toggleMobileMenu}
+              aria-label="Toggle navigation menu"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
           </div>
         </div>
-        <nav>
+        <nav className={mobileMenuOpen ? 'open' : ''}>
           <button 
             className={activeTab === 'quickEntry' ? 'active' : ''} 
-            onClick={() => setActiveTab('quickEntry')}
+            onClick={() => handleNavClick('quickEntry')}
           >
             Quick Entry
           </button>
           <button 
             className={activeTab === 'patients' ? 'active' : ''} 
-            onClick={() => setActiveTab('patients')}
+            onClick={() => handleNavClick('patients')}
           >
             Patients
           </button>
           <button 
             className={activeTab === 'providers' ? 'active' : ''} 
-            onClick={() => setActiveTab('providers')}
+            onClick={() => handleNavClick('providers')}
           >
             Providers
           </button>
           <button 
             className={activeTab === 'charges' ? 'active' : ''} 
-            onClick={() => setActiveTab('charges')}
+            onClick={() => handleNavClick('charges')}
           >
             Charge History
           </button>
@@ -133,13 +154,13 @@ function App() {
             <>
               <button 
                 className={activeTab === 'procedures' ? 'active' : ''} 
-                onClick={() => setActiveTab('procedures')}
+                onClick={() => handleNavClick('procedures')}
               >
                 Procedures
               </button>
               <button 
                 className={activeTab === 'payers' ? 'active' : ''} 
-                onClick={() => setActiveTab('payers')}
+                onClick={() => handleNavClick('payers')}
               >
                 Payers
               </button>
@@ -148,7 +169,7 @@ function App() {
           {canAccessUserManagement && (
             <button 
               className={activeTab === 'users' ? 'active' : ''} 
-              onClick={() => setActiveTab('users')}
+              onClick={() => handleNavClick('users')}
             >
               Users
             </button>
