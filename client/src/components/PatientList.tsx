@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
+import { extractPatientDataFromImage, ExtractedPatientData } from '../utils/grokService';
 
 interface Patient {
   id: string;
@@ -88,6 +89,10 @@ const PatientList: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<'add' | 'edit' | 'view' | 'delete'>('add');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [processingScan, setProcessingScan] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<PatientFormData>({
     firstName: '',
     lastName: '',
@@ -344,6 +349,98 @@ const PatientList: React.FC = () => {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setScanError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImagePreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const activateCamera = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const clearImage = () => {
+    setImagePreview(null);
+    setScanError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const processImageWithGrok = async () => {
+    if (!imagePreview) return;
+
+    try {
+      setProcessingScan(true);
+      setScanError(null);
+
+      // Use the Grok service to extract patient data
+      const extractedData = await extractPatientDataFromImage(imagePreview);
+      
+      // Apply extracted data to form
+      if (extractedData) {
+        setFormData(prev => ({
+          ...prev,
+          firstName: extractedData.firstName || prev.firstName,
+          lastName: extractedData.lastName || prev.lastName,
+          dateOfBirth: extractedData.dateOfBirth || prev.dateOfBirth,
+          gender: extractedData.gender || prev.gender,
+          phone: extractedData.phone || prev.phone,
+          email: extractedData.email || prev.email,
+          address: {
+            street: extractedData.address?.street || prev.address.street,
+            city: extractedData.address?.city || prev.address.city,
+            state: extractedData.address?.state || prev.address.state,
+            zipCode: extractedData.address?.zipCode || prev.address.zipCode
+          },
+          insuranceInfo: {
+            primary: {
+              ...prev.insuranceInfo.primary,
+              memberId: extractedData.insuranceId || prev.insuranceInfo.primary.memberId
+            },
+            secondary: prev.insuranceInfo.secondary
+          }
+        }));
+
+        // If insurance provider is detected, try to find matching payer
+        if (extractedData.insuranceProvider && payers.length > 0) {
+          const matchedPayer = payers.find(p => 
+            p.name.toLowerCase().includes(extractedData.insuranceProvider?.toLowerCase() || '')
+          );
+          
+          if (matchedPayer) {
+            setFormData(prev => ({
+              ...prev,
+              insuranceInfo: {
+                ...prev.insuranceInfo,
+                primary: {
+                  ...prev.insuranceInfo.primary,
+                  payerId: matchedPayer.id
+                }
+              }
+            }));
+          }
+        }
+      }
+
+    } catch (err) {
+      console.error('Error processing image:', err);
+      setScanError('Failed to process image. Please try again or enter information manually.');
+    } finally {
+      setProcessingScan(false);
+    }
+  };
+
   const renderModal = () => {
     if (!showModal) return null;
     
@@ -363,6 +460,68 @@ const PatientList: React.FC = () => {
           <div className="modal-body">
             {(modalType === 'add' || modalType === 'edit') && (
               <form onSubmit={handleSubmit}>
+                {modalType === 'add' && (
+                  <div className="scan-section">
+                    <h4>Scan ID or Insurance Card</h4>
+                    <p className="scan-instruction">Upload or take a photo of an ID or insurance card to automatically fill in patient details.</p>
+                    
+                    <div className="scan-controls">
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary"
+                        onClick={activateCamera}
+                      >
+                        <span className="camera-icon">📷</span> Capture Image
+                      </button>
+                      <input 
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                    
+                    {imagePreview && (
+                      <div className="image-preview-container">
+                        <img 
+                          src={imagePreview} 
+                          alt="Document preview" 
+                          className="image-preview" 
+                        />
+                        <div className="preview-actions">
+                          <button 
+                            type="button" 
+                            className="btn btn-primary"
+                            onClick={processImageWithGrok}
+                            disabled={processingScan}
+                          >
+                            {processingScan ? 'Processing...' : 'Extract Data'}
+                          </button>
+                          <button 
+                            type="button" 
+                            className="btn"
+                            onClick={clearImage}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {scanError && (
+                      <div className="error-message scan-error">
+                        {scanError}
+                      </div>
+                    )}
+                    
+                    <div className="divider">
+                      <span>or enter manually</span>
+                    </div>
+                  </div>
+                )}
+
                 <h4>Personal Information</h4>
                 <div className="form-row">
                   <div className="form-group">
