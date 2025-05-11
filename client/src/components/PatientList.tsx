@@ -699,68 +699,88 @@ const PatientList: React.FC = () => {
   if (error) return <div className="error">{error}</div>;
 
   return (
-    <div>
+    <div className="patient-list-container">
       <h2>Patients</h2>
-      <button 
-        className="btn btn-primary" 
-        style={{ marginBottom: '1rem' }}
-        onClick={() => openModal('add')}
-      >
-        Add New Patient
-      </button>
+      <div className="actions-bar">
+        <button 
+          className="btn btn-primary" 
+          onClick={() => openModal('add')}
+        >
+          Add New Patient
+        </button>
+      </div>
       
       {patients.length === 0 ? (
         <p>No patients found.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Date of Birth</th>
-              <th>Gender</th>
-              <th>Phone</th>
-              <th>Primary Insurance</th>
-              <th>Subscriber ID</th>
-              <th>Provider</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {patients.map((patient) => (
-              <tr key={patient.id}>
-                <td>{`${patient.lastName}, ${patient.firstName}`}</td>
-                <td>{new Date(patient.dateOfBirth).toLocaleDateString()}</td>
-                <td>{patient.gender}</td>
-                <td>{patient.phone}</td>
-                <td>{payers.find(p => p.id === patient.insuranceInfo.primary.payerId)?.name || 'Unknown'}</td>
-                <td>{patient.insuranceInfo.primary.memberId}</td>
-                <td>{patient.providerId ? 
-                    `${providers.find(p => p.id === patient.providerId)?.lastName || ''}, ${providers.find(p => p.id === patient.providerId)?.firstName || ''}` : 
-                    'None'}</td>
-                <td className="actions">
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => openModal('view', patient)}
-                  >
-                    View
-                  </button>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => openModal('edit', patient)}
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    className="btn btn-danger"
-                    onClick={() => openModal('delete', patient)}
-                  >
-                    Delete
-                  </button>
-                </td>
+        <div className="responsive-table-container">
+          <table className="responsive-table">
+            <thead>
+              <tr>
+                <th className="always-visible">Name</th>
+                <th className="visible-md">Date of Birth</th>
+                <th className="visible-lg">Gender</th>
+                <th className="visible-md">Phone</th>
+                <th className="visible-lg">Primary Insurance</th>
+                <th className="visible-lg">Subscriber ID</th>
+                <th className="visible-md">Provider</th>
+                <th className="always-visible">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {patients.map((patient) => (
+                <tr key={patient.id}>
+                  <td className="always-visible">{`${patient.lastName}, ${patient.firstName}`}</td>
+                  <td className="visible-md" data-label="DOB">{new Date(patient.dateOfBirth).toLocaleDateString()}</td>
+                  <td className="visible-lg" data-label="Gender">{patient.gender}</td>
+                  <td className="visible-md" data-label="Phone">{patient.phone}</td>
+                  <td className="visible-lg" data-label="Insurance">{payers.find(p => p.id === patient.insuranceInfo.primary.payerId)?.name || 'Unknown'}</td>
+                  <td className="visible-lg" data-label="Subscriber ID">{patient.insuranceInfo.primary.memberId}</td>
+                  <td className="visible-md" data-label="Provider">{patient.providerId ? 
+                      `${providers.find(p => p.id === patient.providerId)?.lastName || ''}, ${providers.find(p => p.id === patient.providerId)?.firstName || ''}` : 
+                      'None'}</td>
+                  <td className="actions always-visible">
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      onClick={() => openModal('view', patient)}
+                    >
+                      View
+                    </button>
+                    <button 
+                      className="btn btn-primary btn-sm visible-md"
+                      onClick={() => openModal('edit', patient)}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      className="btn btn-danger btn-sm visible-md"
+                      onClick={() => openModal('delete', patient)}
+                    >
+                      Delete
+                    </button>
+                    <div className="mobile-actions visible-sm">
+                      <button 
+                        className="btn btn-sm dropdown-toggle"
+                        onClick={(e) => {
+                          const dropdown = e.currentTarget.nextElementSibling;
+                          if (dropdown) {
+                            dropdown.classList.toggle('show');
+                          }
+                        }}
+                      >
+                        ⋮
+                      </button>
+                      <div className="dropdown-menu">
+                        <button onClick={() => openModal('edit', patient)}>Edit</button>
+                        <button onClick={() => openModal('delete', patient)}>Delete</button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       
       {renderModal()}
