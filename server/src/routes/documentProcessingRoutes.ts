@@ -123,6 +123,8 @@ router.post('/analyze', async (req: Request, res: Response) => {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
+      console.log('Starting fetch request to Grok API...');
+      
       const response = await fetch(endpointUrl, {
         method: 'POST',
         headers: {
@@ -149,7 +151,10 @@ router.post('/analyze', async (req: Request, res: Response) => {
         console.error('API error response text:', errorText);
         return res.status(response.status).json({ 
           message: 'Error from Grok API',
-          error: errorText
+          error: errorText,
+          status: response.status,
+          statusText: response.statusText,
+          headers: headerLog
         });
       }
 
@@ -228,6 +233,109 @@ router.get('/test', (req: Request, res: Response) => {
     apiKeyPrefix: apiKey ? apiKey.substring(0, 5) + '...' : 'Not configured',
     time: new Date().toISOString()
   });
+});
+
+/**
+ * HTML test page for direct document scanning testing 
+ * GET /api/document-processing/test-page
+ */
+router.get('/test-page', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Scanning Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Document Scanning Test</h1>
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Process Image</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="result">
+      <h3>API Response:</h3>
+      <pre id="result">No results yet</pre>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const resultArea = document.getElementById('result');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        resultArea.textContent = 'Sending request...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          resultArea.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        resultArea.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        loading.style.display = 'none';
+        resultArea.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
 });
 
 /**
