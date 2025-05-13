@@ -5,8 +5,23 @@
  * node testGrokApi.js YOUR_API_KEY
  */
 
-// Import the fetch API for Node.js
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+// Import the fetch API for Node.js environments that don't have it globally
+let fetchModule;
+try {
+  // Check if fetch is available globally (Node.js 18+ or browser)
+  if (typeof fetch === 'undefined') {
+    // If not available globally, try to import it
+    fetchModule = require('node-fetch');
+  }
+} catch (error) {
+  console.error('Error importing node-fetch:', error.message);
+  console.error('Please make sure you have installed node-fetch:');
+  console.error('npm install --save node-fetch');
+  process.exit(1);
+}
+
+// Use the appropriate fetch function
+const fetchFn = typeof fetch !== 'undefined' ? fetch : fetchModule.default;
 
 // A very small base64 encoded test image (1x1 pixel)
 const TEST_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -80,7 +95,7 @@ async function testGrokConnection() {
         
         console.log('Sending request...');
         
-        const response = await fetch(endpoint, {
+        const response = await fetchFn(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
