@@ -45,7 +45,7 @@ async function testGrokConnection() {
     // Testing both possible endpoints
     const endpoints = [
       'https://api.groq.com/openai/v1/chat/completions',
-      'https://api.xai.com/v1/vision/analyze'
+      'https://api.x.ai/v1/vision/analyze'
     ];
     
     for (const endpoint of endpoints) {
