@@ -67,25 +67,17 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
 
     console.log('API Key found, preparing for Grok API call');
     
-    // Extract the base64 data from the data URL
-    let base64Data = imageData;
-    const parts = imageData.split('base64,');
-    if (parts.length > 1) {
-      base64Data = parts[1];
-      console.log('Extracted base64 data for API submission');
-    } else {
-      console.warn('Could not find base64 data in the image URL');
-    }
+    // Extract the base64 data
+    const base64Data = imageData.split('base64,')[1];
     
     console.log('Sending request to Grok API...');
     
     try {
       // Using xAI's Grok API for document analysis
-      // NOTE: The actual endpoint may need to be adjusted based on Grok's documentation
-      const endpointUrl = 'https://api.groq.com/openai/v1/chat/completions';
+      const endpointUrl = 'https://api.x.ai/v1/chat/completions';
       
       const requestBody = {
-        model: "llama3-70b-8192",
+        model: "grok-2-vision",
         messages: [
           {
             role: "system",
@@ -99,9 +91,10 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
                 text: "Extract all patient information from this image. Return ONLY a valid JSON object with these fields (leave empty if not found): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider."
               },
               {
-                type: "image_url",
-                image_url: {
-                  url: imageData
+                type: "image",
+                image_data: {
+                  data: base64Data,
+                  media_type: "image/png"
                 }
               }
             ]
