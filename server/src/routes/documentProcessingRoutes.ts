@@ -7,6 +7,31 @@ dotenv.config();
 
 const router = express.Router();
 
+// Define the types for Grok API response
+interface GrokApiResponse {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: {
+      role: string;
+      content: string;
+      refusal: null | string;
+    };
+    finish_reason: string;
+  }>;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    prompt_tokens_details: Record<string, number>;
+    completion_tokens_details: Record<string, number>;
+  };
+  system_fingerprint: string;
+}
+
 /**
  * Process document image with Grok API
  * POST /api/document-processing/analyze
@@ -118,7 +143,7 @@ router.post('/analyze', async (req: Request, res: Response) => {
         });
       }
 
-      const data = await response.json();
+      const data = await response.json() as GrokApiResponse;
       console.log('Grok API response received successfully');
 
       // Extract the content from the response
