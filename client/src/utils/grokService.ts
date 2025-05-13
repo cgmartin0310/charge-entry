@@ -70,6 +70,16 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
     // Extract the base64 data
     const base64Data = imageData.split('base64,')[1];
     
+    // Extract the media type from the image data URL
+    let mediaType = imageData.split(';')[0].split(':')[1];
+    
+    // Normalize media type - ensure jpg is handled correctly as jpeg
+    if (mediaType === 'image/jpg') {
+      mediaType = 'image/jpeg';
+    }
+    
+    console.log('Detected media type:', mediaType);
+    
     console.log('Sending request to Grok API...');
     
     try {
@@ -94,7 +104,7 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
                 type: "image",
                 image_data: {
                   data: base64Data,
-                  media_type: "image/png"
+                  media_type: mediaType
                 }
               }
             ]
@@ -103,6 +113,15 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
         temperature: 0.2,
         max_tokens: 1000
       };
+      
+      console.log('Request details:', {
+        endpoint: endpointUrl,
+        model: requestBody.model,
+        mediaType,
+        contentLength: base64Data.length,
+        apiKeyLength: apiKey.length,
+        apiKeyPrefix: apiKey.substring(0, 5) + '...'
+      });
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
