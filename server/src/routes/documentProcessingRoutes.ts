@@ -54,19 +54,6 @@ router.post('/analyze', async (req: Request, res: Response) => {
     
     console.log('Image data received, length:', imageData.length);
     
-    // Extract the base64 data
-    const base64Data = imageData.split('base64,')[1];
-    
-    // Extract the media type from the image data URL
-    let mediaType = imageData.split(';')[0].split(':')[1];
-    
-    // Normalize media type - ensure jpg is handled correctly as jpeg
-    if (mediaType === 'image/jpg') {
-      mediaType = 'image/jpeg';
-    }
-    
-    console.log('Server processing document with media type:', mediaType);
-    
     // Get API key from environment variable
     const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
     
@@ -77,7 +64,7 @@ router.post('/analyze', async (req: Request, res: Response) => {
     
     console.log('Using Grok API key (first 5 chars):', apiKey.substring(0, 5));
     
-    // Call Grok API
+    // Call Grok API with fixed request format
     const endpointUrl = 'https://api.x.ai/v1/chat/completions';
     
     const requestBody = {
@@ -92,13 +79,12 @@ router.post('/analyze', async (req: Request, res: Response) => {
           content: [
             {
               type: "text",
-              text: "Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. If you're unsure about a field, provide your best guess and indicate uncertainty."
+              text: "This is a real patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look carefully for any text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return ONLY a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be thorough and don't leave any text unidentified."
             },
             {
-              type: "image",
-              image_data: {
-                data: base64Data,
-                media_type: mediaType
+              type: "image_url",
+              image_url: {
+                url: imageData
               }
             }
           ]
@@ -112,8 +98,7 @@ router.post('/analyze', async (req: Request, res: Response) => {
     console.log('Request details:', {
       endpoint: endpointUrl,
       model: requestBody.model,
-      mediaType,
-      contentLength: base64Data.length,
+      contentLength: imageData.length,
       apiKeyLength: apiKey.length
     });
     
@@ -378,11 +363,11 @@ router.get('/test-sample', async (req: Request, res: Response) => {
     
     // Sample insurance card image (base64 encoded small test image)
     // This is just a minimal sample - in production, use a real sample image
-    const sampleImageBase64 = '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';
+    const sampleImageBase64 = 'data:image/png;base64,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';
     
     console.log('Testing with sample insurance card image');
     
-    // Call Grok API
+    // Call Grok API with fixed request format
     const endpointUrl = 'https://api.x.ai/v1/chat/completions';
     
     const requestBody = {
@@ -397,13 +382,12 @@ router.get('/test-sample', async (req: Request, res: Response) => {
           content: [
             {
               type: "text",
-              text: "This is an insurance card image. Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be very thorough and don't leave any text unidentified."
+              text: "This is an insurance card image. Extract ALL visible patient and insurance information. Look carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return ONLY a JSON object with these fields: firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider."
             },
             {
-              type: "image",
-              image_data: {
-                data: sampleImageBase64,
-                media_type: "image/png"
+              type: "image_url",
+              image_url: {
+                url: sampleImageBase64
               }
             }
           ]
@@ -676,14 +660,12 @@ router.get('/test-patient', async (req: Request, res: Response) => {
     
     // Read the file and convert to base64
     const imageBuffer = fs.readFileSync(imagePath);
-    const base64Data = imageBuffer.toString('base64');
+    // Properly format base64 with data:image prefix
+    const base64Data = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
     
-    // Use jpeg media type since we know it's a jpg file
-    const mediaType = 'image/jpeg';
+    console.log('Testing with Test_Patient.jpg - base64 prefix:', base64Data.substring(0, 50));
     
-    console.log('Testing with Test_Patient.jpg');
-    
-    // Call Grok API
+    // Call Grok API with fixed request format
     const endpointUrl = 'https://api.x.ai/v1/chat/completions';
     
     const requestBody = {
@@ -698,13 +680,12 @@ router.get('/test-patient', async (req: Request, res: Response) => {
           content: [
             {
               type: "text",
-              text: "This is a patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be very thorough and don't leave any text unidentified."
+              text: "This is a real patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look carefully for any text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return ONLY a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be thorough and don't leave any text unidentified."
             },
             {
-              type: "image",
-              image_data: {
-                data: base64Data,
-                media_type: mediaType
+              type: "image_url",
+              image_url: {
+                url: base64Data
               }
             }
           ]
@@ -714,19 +695,8 @@ router.get('/test-patient', async (req: Request, res: Response) => {
       max_tokens: 1500
     };
 
-    // Log request details for debugging
-    console.log('Request details for Test_Patient.jpg:', {
-      endpoint: endpointUrl,
-      model: requestBody.model,
-      contentLength: base64Data.length,
-      apiKeyLength: apiKey.length
-    });
+    console.log('Request details for Test_Patient.jpg - request format:', JSON.stringify(requestBody.messages[1].content));
     
-    // Set a timeout of 60 seconds
-    const timeout = 60000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
     try {
       console.log('Starting fetch request to Grok API with Test_Patient.jpg...');
       
@@ -736,11 +706,8 @@ router.get('/test-patient', async (req: Request, res: Response) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
+        body: JSON.stringify(requestBody)
       });
-
-      clearTimeout(timeoutId);
       
       console.log('Test_Patient.jpg response status:', response.status);
       
@@ -803,16 +770,9 @@ router.get('/test-patient', async (req: Request, res: Response) => {
         });
       }
     } catch (error: any) {
-      clearTimeout(timeoutId);
-      
-      if (error.name === 'AbortError') {
-        console.error('Request timed out after', timeout, 'ms');
-        return res.status(408).json({ message: 'Request timed out' });
-      }
-      
-      console.error('Fetch error:', error);
+      console.error('Server error in Test_Patient.jpg test:', error);
       return res.status(500).json({ 
-        message: 'Error communicating with Grok API',
+        message: 'Server error processing Test_Patient.jpg',
         error: error.message
       });
     }
