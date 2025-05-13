@@ -45,7 +45,7 @@ async function testGrokConnection() {
     // Testing both possible endpoints
     const endpoints = [
       'https://api.groq.com/openai/v1/chat/completions',
-      'https://api.x.ai/v1/vision/analyze'
+      'https://api.x.ai/v1/chat/completions'
     ];
     
     for (const endpoint of endpoints) {
@@ -83,13 +83,32 @@ async function testGrokConnection() {
             max_tokens: 100
           };
         } else {
-          // For custom Grok API
-          const base64Data = TEST_IMAGE.split('base64,')[1];
+          // For xAI API - use the same chat completions format
           requestBody = {
-            image: base64Data,
-            analysis_type: 'document',
-            extraction_fields: ['text'],
-            output_format: 'json'
+            model: "grok-2",
+            messages: [
+              {
+                role: "system",
+                content: "You are a helpful assistant."
+              },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "What's in this image? Just reply with a single word."
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: TEST_IMAGE
+                    }
+                  }
+                ]
+              }
+            ],
+            temperature: 0.2,
+            max_tokens: 100
           };
         }
         
