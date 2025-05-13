@@ -84,6 +84,7 @@ async function testGrokConnection() {
           };
         } else {
           // For xAI API - use the same chat completions format
+          const base64Data = TEST_IMAGE.split('base64,')[1];
           requestBody = {
             model: "grok-2-vision",
             messages: [
@@ -99,9 +100,10 @@ async function testGrokConnection() {
                     text: "What's in this image? Just reply with a single word."
                   },
                   {
-                    type: "image_url",
-                    image_url: {
-                      url: TEST_IMAGE
+                    type: "image",
+                    image_data: {
+                      data: base64Data,
+                      media_type: "image/png"
                     }
                   }
                 ]
