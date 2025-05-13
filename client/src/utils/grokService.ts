@@ -55,7 +55,7 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       throw new Error('Invalid image format. Expected a base64 data URL');
     }
 
-    // Real Grok API integration using OpenAI's GPT-4 Vision API
+    // Actual Grok API integration
     const apiKey = process.env.REACT_APP_GROK_API_KEY;
     
     if (!apiKey) {
@@ -63,46 +63,33 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       throw new Error('API key not found. Please check environment variables.');
     }
     
-    console.log('Preparing to send image to GPT-4 Vision API...');
+    console.log('Preparing to send image to Grok API...');
     
-    // Convert data URL to a format suitable for the API
-    let processedImageData = imageData;
-    
-    // Check if we need to handle the data URL format
+    // Extract the base64 data from the data URL
+    let base64Data = imageData;
     if (imageData.includes('base64,')) {
-      // Keep the full data URL for direct use
-      processedImageData = imageData;
+      base64Data = imageData.split('base64,')[1];
     }
     
-    console.log('Sending request to GPT-4 Vision API...');
+    console.log('Sending request to Grok API...');
     
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      // The actual Grok API endpoint and request format may be different
+      // You'll need to adjust this based on Grok's actual API documentation
+      const response = await fetch('https://api.grok.ai/v1/vision/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "gpt-4-vision-preview",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Extract patient information from this image. Include as many details as possible such as full name, date of birth, gender, address, phone, email, insurance ID, and insurance provider name. Return ONLY a valid JSON object with these fields: firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider."
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: processedImageData
-                  }
-                }
-              ]
-            }
+          image: base64Data,
+          analysis_type: 'document',
+          extraction_fields: [
+            'firstName', 'lastName', 'dateOfBirth', 'gender', 'phone', 
+            'email', 'address', 'insuranceId', 'insuranceProvider'
           ],
-          max_tokens: 1000
+          output_format: 'json'
         })
       });
 
@@ -126,14 +113,9 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       }
 
       const data = await response.json();
-      console.log('Response received from GPT-4 Vision API:', data);
+      console.log('Response received from Grok API:', data);
       
-      if (!data || !data.choices || !data.choices[0]) {
-        console.error('Unexpected API response format:', data);
-        throw new Error('Invalid response format from API');
-      }
-      
-      return parseAPIResponse(data);
+      return parseGrokResponse(data);
     } catch (fetchError: any) {
       console.error('Fetch error details:', fetchError);
       
@@ -151,68 +133,53 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
 };
 
 /**
- * Parses the API response content
- * This extracts the JSON data from the text response
+ * Parses the Grok API response content
  * 
- * @param apiResponse Raw response from the Vision API
+ * @param apiResponse Raw response from the Grok API
  * @returns Formatted patient data
  */
-const parseAPIResponse = (apiResponse: any): ExtractedPatientData => {
+const parseGrokResponse = (apiResponse: any): ExtractedPatientData => {
   try {
-    // Get the content from the response
-    const content = apiResponse.choices[0].message.content;
-    console.log('Parsing response content:', content);
+    console.log('Parsing Grok response:', apiResponse);
     
-    // Try to extract JSON from the response text
-    // The response might be a mix of text and JSON
-    let jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[0];
-      console.log('Extracted JSON:', jsonStr);
+    // The parsing logic will depend on Grok's actual response format
+    // This is a placeholder assuming a specific format - adjust as needed
+    const result: ExtractedPatientData = {
+      address: {}
+    };
+    
+    if (apiResponse.extracted_data) {
+      const data = apiResponse.extracted_data;
       
-      try {
-        const extractedData = JSON.parse(jsonStr);
-        console.log('Parsed data:', extractedData);
-        
-        // Map to our expected format
-        return {
-          firstName: extractedData.firstName || extractedData.first_name,
-          lastName: extractedData.lastName || extractedData.last_name,
-          dateOfBirth: extractedData.dateOfBirth || extractedData.date_of_birth || extractedData.dob,
-          gender: extractedData.gender,
-          phone: extractedData.phone || extractedData.phoneNumber || extractedData.phone_number,
-          email: extractedData.email,
-          address: {
-            street: extractedData.address?.street || extractedData.street,
-            city: extractedData.address?.city || extractedData.city,
-            state: extractedData.address?.state || extractedData.state,
-            zipCode: extractedData.address?.zipCode || extractedData.address?.zip || extractedData.zipCode || extractedData.zip
-          },
-          insuranceId: extractedData.insuranceId || extractedData.insurance_id || extractedData.memberId || extractedData.member_id,
-          insuranceProvider: extractedData.insuranceProvider || extractedData.insurance_provider || extractedData.insurance
+      result.firstName = data.first_name || data.firstName;
+      result.lastName = data.last_name || data.lastName;
+      result.dateOfBirth = data.date_of_birth || data.dateOfBirth || data.dob;
+      result.gender = data.gender;
+      result.phone = data.phone || data.phone_number;
+      result.email = data.email;
+      
+      if (data.address) {
+        result.address = {
+          street: data.address.street || data.address.line1,
+          city: data.address.city,
+          state: data.address.state,
+          zipCode: data.address.zip_code || data.address.zipCode || data.address.zip
         };
-      } catch (parseError) {
-        console.error('Error parsing JSON from response:', parseError);
-        console.error('Failed JSON string:', jsonStr);
-        throw new Error('Failed to parse JSON from API response');
       }
+      
+      result.insuranceId = data.insurance_id || data.insuranceId || data.member_id;
+      result.insuranceProvider = data.insurance_provider || data.insuranceProvider;
+      
+      return result;
     }
     
-    // If no JSON found, try to handle plain text response
-    console.error('Could not extract JSON from response. Checking for fallback text format...');
-    
-    // If we can't find JSON, try to parse the content as plaintext
-    if (content.includes(':')) {
-      console.log('Attempting to parse as key-value pairs...');
-      const result: ExtractedPatientData = {
-        address: {}
-      };
-      
-      // Try to extract key-value pairs from the text
-      const lines = content.split('\n');
+    // Fallback for plain text/alternative formats
+    if (apiResponse.text) {
+      console.log('Attempting to parse as key-value pairs from text...');
+      const lines = apiResponse.text.split('\n');
       for (const line of lines) {
         if (line.includes(':')) {
-          const [key, value] = line.split(':', 2).map(s => s.trim());
+          const [key, value] = line.split(':', 2).map((s: string) => s.trim());
           const normalizedKey = key.toLowerCase();
           
           if (normalizedKey.includes('first name') || normalizedKey === 'firstname') {
@@ -242,11 +209,11 @@ const parseAPIResponse = (apiResponse: any): ExtractedPatientData => {
           }
         }
       }
-      
-      if (result.firstName || result.lastName) {
-        console.log('Extracted data from text format:', result);
-        return result;
-      }
+    }
+    
+    if (result.firstName || result.lastName) {
+      console.log('Extracted data:', result);
+      return result;
     }
     
     // If no structured data could be found
