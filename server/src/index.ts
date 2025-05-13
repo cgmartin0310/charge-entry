@@ -13,6 +13,7 @@ import procedureRoutes from './routes/procedureRoutes';
 import providerRoutes from './routes/providerRoutes';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/auth';
+import documentProcessingRoutes from './routes/documentProcessingRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -38,6 +39,7 @@ app.use('/api/payers', payerRoutes);
 app.use('/api/charges', chargeRoutes);
 app.use('/api/procedures', procedureRoutes);
 app.use('/api/providers', providerRoutes);
+app.use('/api/document-processing', documentProcessingRoutes);
 
 // Debug route to check the API is accessible
 app.get('/api/debug', (req, res) => {

@@ -57,95 +57,28 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       throw new Error('Invalid image format. Expected a base64 data URL');
     }
 
-    // Actual Grok API integration
-    const apiKey = process.env.REACT_APP_GROK_API_KEY;
-    
-    if (!apiKey) {
-      console.error('API key not found in environment variables');
-      throw new Error('API key not found. Please check environment variables.');
-    }
-
-    console.log('API Key found, preparing for Grok API call');
-    
-    // Extract the base64 data
-    const base64Data = imageData.split('base64,')[1];
-    
-    // Extract the media type from the image data URL
-    let mediaType = imageData.split(';')[0].split(':')[1];
-    
-    // Normalize media type - ensure jpg is handled correctly as jpeg
-    if (mediaType === 'image/jpg') {
-      mediaType = 'image/jpeg';
-    }
-    
-    console.log('Detected media type:', mediaType);
-    
-    console.log('Sending request to Grok API...');
+    console.log('Sending request to server document processing API...');
     
     try {
-      // Using xAI's Grok API for document analysis
-      const endpointUrl = 'https://api.x.ai/v1/chat/completions';
-      
-      const requestBody = {
-        model: "grok-2-vision",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards."
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extract all patient information from this image. Return ONLY a valid JSON object with these fields (leave empty if not found): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider."
-              },
-              {
-                type: "image",
-                image_data: {
-                  data: base64Data,
-                  media_type: mediaType
-                }
-              }
-            ]
-          }
-        ],
-        temperature: 0.2,
-        max_tokens: 1000
-      };
-      
-      console.log('Request details:', {
-        endpoint: endpointUrl,
-        model: requestBody.model,
-        mediaType,
-        contentLength: base64Data.length,
-        apiKeyLength: apiKey.length,
-        apiKeyPrefix: apiKey.substring(0, 5) + '...'
-      });
+      // Use the server-side proxy endpoint instead of calling Grok API directly
+      // This helps avoid CORS issues and keeps API keys on the server
+      const endpointUrl = '/api/document-processing/analyze';
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
       
       const response = await fetch(endpointUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ imageData }),
         signal: controller.signal
       });
       
       clearTimeout(timeoutId); // Clear the timeout if response arrives
       
       console.log('Response status:', response.status);
-      
-      // Log headers without using spread operator
-      const headerLog: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        headerLog[key] = value;
-      });
-      console.log('Response headers:', JSON.stringify(headerLog));
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -155,31 +88,36 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
           const errorData = JSON.parse(errorText);
           console.error('API error details:', JSON.stringify(errorData));
           
-          if (errorData.error && errorData.error.message) {
-            throw new Error(`API error: ${errorData.error.message}`);
+          if (errorData.message) {
+            throw new Error(`Error: ${errorData.message}`);
           }
         } catch (parseError) {
           // If we can't parse the error as JSON, just use the status code
           console.error('Could not parse error response as JSON:', parseError);
         }
         
-        throw new Error(`API error: ${response.status} - ${response.statusText}`);
+        throw new Error(`Error: ${response.status} - ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('Response received from Grok API');
+      console.log('Response received from document processing API');
       
-      return parseGrokResponse(data);
+      if (data.success && data.data) {
+        return data.data;
+      } else {
+        console.error('Unexpected response format:', data);
+        throw new Error('Invalid response format from server');
+      }
     } catch (fetchError: any) {
       console.error('Fetch error details:', fetchError);
       
       // Try to provide more specific error messages
       if (fetchError.name === 'AbortError') {
-        throw new Error('API request timed out. The server took too long to respond.');
+        throw new Error('Request timed out. The server took too long to respond.');
       } else if (fetchError.message && fetchError.message.includes('Failed to fetch')) {
-        throw new Error('Network error. Please check your internet connection or the API endpoint may be unavailable.');
+        throw new Error('Network error. Please check your internet connection or the server may be unavailable.');
       } else if (fetchError.message && fetchError.message.includes('NetworkError')) {
-        throw new Error('Network error. There might be a CORS issue or the API server is not accessible.');
+        throw new Error('Network error. The server may not be accessible.');
       }
       
       throw fetchError;
@@ -188,111 +126,6 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
     console.error('Error extracting patient data:', error.message);
     console.error('Error stack:', error.stack);
     throw error;
-  }
-};
-
-/**
- * Parses the Grok API response content
- * 
- * @param apiResponse Raw response from the Grok API
- * @returns Formatted patient data
- */
-const parseGrokResponse = (apiResponse: any): ExtractedPatientData => {
-  try {
-    console.log('Parsing Grok response');
-    
-    // For the Groq/LLM API, the content will be in the message content
-    if (apiResponse.choices && apiResponse.choices[0]?.message?.content) {
-      const content = apiResponse.choices[0].message.content;
-      console.log('Found content in API response:', content.substring(0, 200) + '...');
-      
-      // Try to extract JSON from the response text
-      // The response might be a mix of text and JSON
-      let jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const jsonStr = jsonMatch[0];
-        console.log('Extracted JSON:', jsonStr);
-        
-        try {
-          const extractedData = JSON.parse(jsonStr);
-          
-          // Map to our expected format
-          return {
-            firstName: extractedData.firstName || extractedData.first_name,
-            lastName: extractedData.lastName || extractedData.last_name,
-            dateOfBirth: extractedData.dateOfBirth || extractedData.date_of_birth || extractedData.dob,
-            gender: extractedData.gender,
-            phone: extractedData.phone || extractedData.phoneNumber || extractedData.phone_number,
-            email: extractedData.email,
-            address: {
-              street: extractedData.address?.street || extractedData.street,
-              city: extractedData.address?.city || extractedData.city,
-              state: extractedData.address?.state || extractedData.state,
-              zipCode: extractedData.address?.zipCode || extractedData.address?.zip || extractedData.zipCode || extractedData.zip
-            },
-            insuranceId: extractedData.insuranceId || extractedData.insurance_id || extractedData.memberId || extractedData.member_id,
-            insuranceProvider: extractedData.insuranceProvider || extractedData.insurance_provider || extractedData.insurance
-          };
-        } catch (parseError) {
-          console.error('Error parsing JSON from response:', parseError);
-        }
-      }
-      
-      // If JSON extraction failed, try to parse as key-value pairs
-      console.log('Attempting to parse as key-value pairs...');
-      if (content.includes(':')) {
-        const result: ExtractedPatientData = {
-          address: {}
-        };
-        
-        const lines = content.split('\n');
-        for (const line of lines) {
-          if (line.includes(':')) {
-            const [key, value] = line.split(':', 2).map((s: string) => s.trim());
-            const normalizedKey = key.toLowerCase();
-            
-            if (normalizedKey.includes('first name') || normalizedKey === 'firstname') {
-              result.firstName = value;
-            } else if (normalizedKey.includes('last name') || normalizedKey === 'lastname') {
-              result.lastName = value;
-            } else if (normalizedKey.includes('birth') || normalizedKey === 'dob') {
-              result.dateOfBirth = value;
-            } else if (normalizedKey === 'gender') {
-              result.gender = value;
-            } else if (normalizedKey.includes('phone')) {
-              result.phone = value;
-            } else if (normalizedKey === 'email') {
-              result.email = value;
-            } else if (normalizedKey.includes('street') || normalizedKey === 'address') {
-              result.address!.street = value;
-            } else if (normalizedKey === 'city') {
-              result.address!.city = value;
-            } else if (normalizedKey === 'state') {
-              result.address!.state = value;
-            } else if (normalizedKey.includes('zip')) {
-              result.address!.zipCode = value;
-            } else if (normalizedKey.includes('insurance id') || normalizedKey.includes('member id')) {
-              result.insuranceId = value;
-            } else if (normalizedKey.includes('insurance provider') || normalizedKey === 'provider') {
-              result.insuranceProvider = value;
-            }
-          }
-        }
-        
-        if (result.firstName || result.lastName) {
-          console.log('Extracted data from text format:', result);
-          return result;
-        }
-      }
-    }
-    
-    // If no structured data could be found
-    console.error('Could not extract structured data from response');
-    return {};
-    
-  } catch (error) {
-    console.error('Error parsing response:', error);
-    return {};
   }
 };
 
