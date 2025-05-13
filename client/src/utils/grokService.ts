@@ -50,6 +50,7 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
     }
 
     console.log('Image data format check:', imageData.substring(0, 50) + '...');
+    console.log('Image data length:', imageData.length);
 
     // Check if the image data is in the expected format (base64)
     if (!imageData.startsWith('data:image')) {
@@ -57,71 +58,96 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       throw new Error('Invalid image format. Expected a base64 data URL');
     }
 
-    console.log('Sending request to server document processing API...');
+    // Get the base URL for the API (handle different environments)
+    const baseApiUrl = process.env.NODE_ENV === 'production' 
+      ? '' // Empty for same-origin in production
+      : 'http://localhost:5002'; // For local development
     
-    try {
-      // Use the server-side proxy endpoint instead of calling Grok API directly
-      // This helps avoid CORS issues and keeps API keys on the server
-      const endpointUrl = '/api/document-processing/analyze';
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-      
-      const response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ imageData }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId); // Clear the timeout if response arrives
-      
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API error response text:', errorText);
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          console.error('API error details:', JSON.stringify(errorData));
-          
-          if (errorData.message) {
-            throw new Error(`Error: ${errorData.message}`);
-          }
-        } catch (parseError) {
-          // If we can't parse the error as JSON, just use the status code
-          console.error('Could not parse error response as JSON:', parseError);
+    // Build the full endpoint URL
+    const endpointUrl = `${baseApiUrl}/api/document-processing/analyze`;
+    
+    console.log('Sending request to document processing API at:', endpointUrl);
+    
+    // Implement retry logic
+    const maxRetries = 2;
+    let retryCount = 0;
+    let lastError: Error | null = null;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        if (retryCount > 0) {
+          console.log(`Retry attempt ${retryCount} of ${maxRetries}...`);
+          // Add a short delay before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
         }
         
-        throw new Error(`Error: ${response.status} - ${response.statusText}`);
-      }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        
+        const response = await fetch(endpointUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ imageData }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId); // Clear the timeout if response arrives
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API error response text:', errorText);
+          
+          try {
+            const errorData = JSON.parse(errorText);
+            console.error('API error details:', JSON.stringify(errorData));
+            
+            if (errorData.message) {
+              throw new Error(`Error: ${errorData.message}`);
+            }
+          } catch (parseError) {
+            // If we can't parse the error as JSON, just use the status code
+            console.error('Could not parse error response as JSON:', parseError);
+          }
+          
+          throw new Error(`Error: ${response.status} - ${response.statusText}`);
+        }
 
-      const data = await response.json();
-      console.log('Response received from document processing API');
-      
-      if (data.success && data.data) {
-        return data.data;
-      } else {
-        console.error('Unexpected response format:', data);
-        throw new Error('Invalid response format from server');
+        const data = await response.json();
+        console.log('Response received from document processing API');
+        
+        if (data.success && data.data) {
+          return data.data;
+        } else {
+          console.error('Unexpected response format:', data);
+          throw new Error('Invalid response format from server');
+        }
+      } catch (fetchError: any) {
+        console.error(`Attempt ${retryCount + 1} failed:`, fetchError.message);
+        lastError = fetchError;
+        retryCount++;
+        
+        // Don't retry if it's a specific error that won't be fixed by retrying
+        if (fetchError.message && (
+            fetchError.message.includes('No image data provided') || 
+            fetchError.message.includes('Invalid image format')
+          )) {
+          throw fetchError;
+        }
+        
+        // If we've hit max retries, throw the last error
+        if (retryCount > maxRetries) {
+          console.error('All retry attempts failed');
+          throw lastError;
+        }
       }
-    } catch (fetchError: any) {
-      console.error('Fetch error details:', fetchError);
-      
-      // Try to provide more specific error messages
-      if (fetchError.name === 'AbortError') {
-        throw new Error('Request timed out. The server took too long to respond.');
-      } else if (fetchError.message && fetchError.message.includes('Failed to fetch')) {
-        throw new Error('Network error. Please check your internet connection or the server may be unavailable.');
-      } else if (fetchError.message && fetchError.message.includes('NetworkError')) {
-        throw new Error('Network error. The server may not be accessible.');
-      }
-      
-      throw fetchError;
     }
+    
+    // This should never be reached due to the throw in the loop
+    throw new Error('Unknown error occurred');
   } catch (error: any) {
     console.error('Error extracting patient data:', error.message);
     console.error('Error stack:', error.stack);

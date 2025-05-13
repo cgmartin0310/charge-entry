@@ -38,11 +38,21 @@ interface GrokApiResponse {
  */
 router.post('/analyze', async (req: Request, res: Response) => {
   try {
+    console.log('Document processing request received', {
+      timestamp: new Date().toISOString(),
+      contentType: req.headers['content-type'],
+      bodyLength: req.body ? JSON.stringify(req.body).length : 0,
+      hasImageData: !!req.body?.imageData
+    });
+    
     const { imageData } = req.body;
     
     if (!imageData) {
+      console.error('No image data provided in request body');
       return res.status(400).json({ message: 'No image data provided' });
     }
+    
+    console.log('Image data received, length:', imageData.length);
     
     // Extract the base64 data
     const base64Data = imageData.split('base64,')[1];
@@ -202,6 +212,22 @@ router.post('/analyze', async (req: Request, res: Response) => {
       error: error.message
     });
   }
+});
+
+/**
+ * Test endpoint to verify the document processing API is accessible
+ * GET /api/document-processing/test
+ */
+router.get('/test', (req: Request, res: Response) => {
+  // Check if the API key is configured
+  const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+  
+  return res.json({
+    message: 'Document processing API is accessible',
+    apiKeyConfigured: !!apiKey,
+    apiKeyPrefix: apiKey ? apiKey.substring(0, 5) + '...' : 'Not configured',
+    time: new Date().toISOString()
+  });
 });
 
 /**
