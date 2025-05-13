@@ -85,14 +85,14 @@ router.post('/analyze', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards."
+          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Extract all patient information from this image. Return ONLY a valid JSON object with these fields (leave empty if not found): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider."
+              text: "Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. If you're unsure about a field, provide your best guess and indicate uncertainty."
             },
             {
               type: "image",
@@ -104,8 +104,8 @@ router.post('/analyze', async (req: Request, res: Response) => {
           ]
         }
       ],
-      temperature: 0.2,
-      max_tokens: 1000
+      temperature: 0.1,
+      max_tokens: 1500
     };
 
     // Log request details for debugging
@@ -336,6 +336,121 @@ router.get('/test-page', (req: Request, res: Response) => {
   
   res.setHeader('Content-Type', 'text/html');
   res.send(html);
+});
+
+/**
+ * Test with a sample insurance card image
+ * GET /api/document-processing/test-sample
+ */
+router.get('/test-sample', async (req: Request, res: Response) => {
+  try {
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      console.error('API key not found in environment variables');
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // Sample insurance card image (base64 encoded small test image)
+    // This is just a minimal sample - in production, use a real sample image
+    const sampleImageBase64 = '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';
+    
+    console.log('Testing with sample insurance card image');
+    
+    // Call Grok API
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    const requestBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "This is an insurance card image. Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be very thorough and don't leave any text unidentified."
+            },
+            {
+              type: "image",
+              image_data: {
+                data: sampleImageBase64,
+                media_type: "image/png"
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+
+    // Log request details for debugging
+    console.log('Request details for sample test:', {
+      endpoint: endpointUrl,
+      model: requestBody.model,
+      contentLength: sampleImageBase64.length,
+      apiKeyLength: apiKey.length
+    });
+    
+    // Set a timeout of 60 seconds
+    const timeout = 60000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      console.log('Starting fetch request to Grok API for sample test...');
+      
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      
+      console.log('Sample test response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response text for sample test:', errorText);
+        return res.status(response.status).json({ 
+          message: 'Error from Grok API on sample test',
+          error: errorText
+        });
+      }
+
+      const data = await response.json() as GrokApiResponse;
+      console.log('Sample test API response received successfully');
+      
+      // Return the full response for analysis
+      return res.json({ 
+        success: true,
+        rawResponse: data,
+        extractedContent: data.choices[0]?.message?.content || 'No content extracted'
+      });
+    } catch (error: any) {
+      console.error('Error in sample test:', error);
+      return res.status(500).json({
+        message: 'Error processing sample image',
+        error: error.message
+      });
+    }
+  } catch (error: any) {
+    console.error('Server error in sample test:', error);
+    return res.status(500).json({ 
+      message: 'Server error processing sample image',
+      error: error.message
+    });
+  }
 });
 
 /**
