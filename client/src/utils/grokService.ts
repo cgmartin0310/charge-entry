@@ -125,7 +125,13 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       clearTimeout(timeoutId); // Clear the timeout if response arrives
       
       console.log('Response status:', response.status);
-      console.log('Response headers:', JSON.stringify(Object.fromEntries([...response.headers])));
+      
+      // Log headers without using spread operator
+      const headerLog: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headerLog[key] = value;
+      });
+      console.log('Response headers:', JSON.stringify(headerLog));
       
       if (!response.ok) {
         const errorText = await response.text();
