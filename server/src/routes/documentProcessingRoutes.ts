@@ -180,13 +180,16 @@ router.post('/analyze', async (req: Request, res: Response) => {
           
           return res.json({ 
             success: true, 
-            data: extractedData
+            data: extractedData,
+            rawContent: content,
+            rawResponse: data
           });
         } catch (parseError) {
           console.error('Error parsing response content:', parseError);
           return res.status(500).json({ 
             message: 'Error parsing Grok API response', 
-            rawContent: content
+            rawContent: content,
+            rawResponse: data
           });
         }
       } else {
@@ -252,6 +255,7 @@ router.get('/test-page', (req: Request, res: Response) => {
     .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
     .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
     .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
+    .raw-output { margin-top: 20px; background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
     button { margin-top: 10px; padding: 8px 16px; }
     .loading { display: none; margin-top: 10px; }
   </style>
@@ -266,8 +270,11 @@ router.get('/test-page', (req: Request, res: Response) => {
     <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
     
     <div class="result">
-      <h3>API Response:</h3>
+      <h3>Extracted Data:</h3>
       <pre id="result">No results yet</pre>
+      
+      <h3>Raw API Response:</h3>
+      <div id="rawOutput" class="raw-output">No raw output yet</div>
     </div>
   </div>
 
@@ -276,6 +283,7 @@ router.get('/test-page', (req: Request, res: Response) => {
     const preview = document.getElementById('preview');
     const processBtn = document.getElementById('processBtn');
     const resultArea = document.getElementById('result');
+    const rawOutput = document.getElementById('rawOutput');
     const loading = document.getElementById('loading');
     let imageData = null;
 
@@ -301,6 +309,7 @@ router.get('/test-page', (req: Request, res: Response) => {
       
       try {
         resultArea.textContent = 'Sending request...';
+        rawOutput.textContent = 'Waiting for response...';
         loading.style.display = 'block';
         processBtn.disabled = true;
         
@@ -321,7 +330,22 @@ router.get('/test-page', (req: Request, res: Response) => {
         }
         
         const data = await response.json();
-        resultArea.textContent = JSON.stringify(data, null, 2);
+        
+        // Display the extracted data
+        if (data.success && data.data) {
+          resultArea.textContent = JSON.stringify(data.data, null, 2);
+        } else {
+          resultArea.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        // Display raw API response if available
+        if (data.rawResponse) {
+          rawOutput.textContent = JSON.stringify(data.rawResponse, null, 2);
+        } else if (data.rawContent) {
+          rawOutput.textContent = data.rawContent;
+        } else {
+          rawOutput.textContent = "No raw API response available";
+        }
       } catch (error) {
         loading.style.display = 'none';
         resultArea.textContent = \`Error: \${error.message}\`;
@@ -448,6 +472,354 @@ router.get('/test-sample', async (req: Request, res: Response) => {
     console.error('Server error in sample test:', error);
     return res.status(500).json({ 
       message: 'Server error processing sample image',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Test with a local test image file (Test_Patient)
+ * GET /api/document-processing/test-local
+ */
+router.get('/test-local', async (req: Request, res: Response) => {
+  try {
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      console.error('API key not found in environment variables');
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // Import fs to read the file
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Path to the test image (relative to project root)
+    const imagePath = path.join(process.cwd(), 'Test_Patient');
+    
+    console.log('Reading test image from:', imagePath);
+    
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ 
+        message: 'Test image not found',
+        searchPath: imagePath
+      });
+    }
+    
+    // Read the file and convert to base64
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64Data = imageBuffer.toString('base64');
+    
+    // Determine media type from file extension or default to jpeg
+    let mediaType = 'image/jpeg';
+    if (imagePath.toLowerCase().endsWith('.png')) {
+      mediaType = 'image/png';
+    }
+    
+    console.log('Testing with local image file');
+    
+    // Call Grok API
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    const requestBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "This is a patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be very thorough and don't leave any text unidentified."
+            },
+            {
+              type: "image",
+              image_data: {
+                data: base64Data,
+                media_type: mediaType
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+
+    // Log request details for debugging
+    console.log('Request details for local test:', {
+      endpoint: endpointUrl,
+      model: requestBody.model,
+      contentLength: base64Data.length,
+      apiKeyLength: apiKey.length
+    });
+    
+    // Set a timeout of 60 seconds
+    const timeout = 60000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      console.log('Starting fetch request to Grok API for local test...');
+      
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      
+      console.log('Local test response status:', response.status);
+      console.log('Local test response headers:', response.headers);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response text for local test:', errorText);
+        return res.status(response.status).json({ 
+          message: 'Error from Grok API on local test',
+          error: errorText
+        });
+      }
+
+      const data = await response.json() as GrokApiResponse;
+      console.log('Local test API response received successfully');
+      
+      // Extract the content and try to parse as JSON
+      if (data.choices && data.choices[0]?.message?.content) {
+        const content = data.choices[0].message.content;
+        
+        try {
+          let extractedData = {};
+          let jsonMatch = content.match(/\{[\s\S]*\}/);
+          
+          if (jsonMatch) {
+            const jsonStr = jsonMatch[0];
+            extractedData = JSON.parse(jsonStr);
+          } else if (content.includes(':')) {
+            // If it's not JSON, try key-value pairs
+            extractedData = parseTextContent(content);
+          }
+          
+          return res.json({ 
+            success: true, 
+            data: extractedData,
+            rawResponse: data
+          });
+        } catch (parseError) {
+          console.error('Error parsing response content:', parseError);
+          return res.status(500).json({ 
+            message: 'Error parsing Grok API response', 
+            rawContent: content,
+            rawResponse: data
+          });
+        }
+      } else {
+        return res.status(500).json({ 
+          message: 'Invalid response format from Grok API',
+          response: data
+        });
+      }
+    } catch (error: any) {
+      console.error('Server error in local test:', error);
+      return res.status(500).json({ 
+        message: 'Server error processing local image',
+        error: error.message
+      });
+    }
+  } catch (error: any) {
+    console.error('Server error in local test:', error);
+    return res.status(500).json({ 
+      message: 'Server error processing local image',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Test endpoint for the Test_Patient.jpg image in project root
+ * GET /api/document-processing/test-patient
+ */
+router.get('/test-patient', async (req: Request, res: Response) => {
+  try {
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      console.error('API key not found in environment variables');
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // Import fs to read the file
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Path to the test image (relative to project root)
+    const imagePath = path.join(process.cwd(), 'Test_Patient.jpg');
+    
+    console.log('Reading Test_Patient.jpg from:', imagePath);
+    
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ 
+        message: 'Test_Patient.jpg not found',
+        searchPath: imagePath
+      });
+    }
+    
+    // Read the file and convert to base64
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64Data = imageBuffer.toString('base64');
+    
+    // Use jpeg media type since we know it's a jpg file
+    const mediaType = 'image/jpeg';
+    
+    console.log('Testing with Test_Patient.jpg');
+    
+    // Call Grok API
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    const requestBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "This is a patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be very thorough and don't leave any text unidentified."
+            },
+            {
+              type: "image",
+              image_data: {
+                data: base64Data,
+                media_type: mediaType
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+
+    // Log request details for debugging
+    console.log('Request details for Test_Patient.jpg:', {
+      endpoint: endpointUrl,
+      model: requestBody.model,
+      contentLength: base64Data.length,
+      apiKeyLength: apiKey.length
+    });
+    
+    // Set a timeout of 60 seconds
+    const timeout = 60000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      console.log('Starting fetch request to Grok API with Test_Patient.jpg...');
+      
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      
+      console.log('Test_Patient.jpg response status:', response.status);
+      
+      const headerLog: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headerLog[key] = value;
+      });
+      console.log('Response headers:', JSON.stringify(headerLog));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response text for Test_Patient.jpg:', errorText);
+        return res.status(response.status).json({ 
+          message: 'Error from Grok API on Test_Patient.jpg',
+          error: errorText,
+          status: response.status,
+          statusText: response.statusText,
+          headers: headerLog
+        });
+      }
+
+      const data = await response.json() as GrokApiResponse;
+      console.log('Test_Patient.jpg API response received successfully');
+      
+      // Extract the content and try to parse as JSON
+      if (data.choices && data.choices[0]?.message?.content) {
+        const content = data.choices[0].message.content;
+        console.log('Raw content from Grok API:', content);
+        
+        try {
+          let extractedData = {};
+          let jsonMatch = content.match(/\{[\s\S]*\}/);
+          
+          if (jsonMatch) {
+            const jsonStr = jsonMatch[0];
+            extractedData = JSON.parse(jsonStr);
+          } else if (content.includes(':')) {
+            // If it's not JSON, try key-value pairs
+            extractedData = parseTextContent(content);
+          }
+          
+          return res.json({ 
+            success: true, 
+            data: extractedData,
+            rawContent: content,
+            rawResponse: data
+          });
+        } catch (parseError) {
+          console.error('Error parsing response content:', parseError);
+          return res.status(500).json({ 
+            message: 'Error parsing Grok API response', 
+            rawContent: content,
+            rawResponse: data
+          });
+        }
+      } else {
+        return res.status(500).json({ 
+          message: 'Invalid response format from Grok API',
+          response: data
+        });
+      }
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        console.error('Request timed out after', timeout, 'ms');
+        return res.status(408).json({ message: 'Request timed out' });
+      }
+      
+      console.error('Fetch error:', error);
+      return res.status(500).json({ 
+        message: 'Error communicating with Grok API',
+        error: error.message
+      });
+    }
+  } catch (error: any) {
+    console.error('Server error in Test_Patient.jpg test:', error);
+    return res.status(500).json({ 
+      message: 'Server error processing Test_Patient.jpg',
       error: error.message
     });
   }
