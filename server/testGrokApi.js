@@ -85,7 +85,7 @@ async function testGrokConnection() {
         } else {
           // For xAI API - use the same chat completions format
           requestBody = {
-            model: "grok-2",
+            model: "grok-2-vision",
             messages: [
               {
                 role: "system",
