@@ -26,7 +26,7 @@ export interface ExtractedPatientData {
 }
 
 // Flag to use mock data for testing purposes
-const USE_MOCK_DATA = false; // Set to true for testing without API calls
+const USE_MOCK_DATA = true; // Temporarily set to true while we debug the API integration
 
 /**
  * Process an image using Grok API to extract patient information
@@ -49,6 +49,8 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       throw new Error('No image data provided');
     }
 
+    console.log('Image data format check:', imageData.substring(0, 50) + '...');
+
     // Check if the image data is in the expected format (base64)
     if (!imageData.startsWith('data:image')) {
       console.error('Image format appears to be invalid');
@@ -63,43 +65,75 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
       throw new Error('API key not found. Please check environment variables.');
     }
     
+    console.log('API Key found, length:', apiKey.length);
+    console.log('API Key first 5 chars:', apiKey.substring(0, 5));
     console.log('Preparing to send image to Grok API...');
     
     // Extract the base64 data from the data URL
     let base64Data = imageData;
-    if (imageData.includes('base64,')) {
-      base64Data = imageData.split('base64,')[1];
+    const parts = imageData.split('base64,');
+    if (parts.length > 1) {
+      base64Data = parts[1];
+      console.log('Extracted base64 data length:', base64Data.length);
+    } else {
+      console.warn('Could not find base64 data in the image URL');
     }
     
     console.log('Sending request to Grok API...');
     
+    // The actual implementation may vary depending on Grok's API documentation
+    // For now, let's try to log as much information as possible for debugging
+    
     try {
-      // The actual Grok API endpoint and request format may be different
-      // You'll need to adjust this based on Grok's actual API documentation
-      const response = await fetch('https://api.grok.ai/v1/vision/analyze', {
+      // For debugging purposes, let's try multiple possible Grok API endpoints
+      
+      // Option 1: The endpoint we tried before
+      const endpointUrl = 'https://api.grok.ai/v1/vision/analyze';
+      console.log('Using API endpoint:', endpointUrl);
+      
+      const requestBody = {
+        image: base64Data,
+        analysis_type: 'document',
+        extraction_fields: [
+          'firstName', 'lastName', 'dateOfBirth', 'gender', 'phone', 
+          'email', 'address', 'insuranceId', 'insuranceProvider'
+        ],
+        output_format: 'json'
+      };
+      
+      console.log('Request body structure:', 
+        JSON.stringify({
+          ...requestBody,
+          image: base64Data.substring(0, 20) + '...[truncated]'
+        })
+      );
+      
+      // Let's add a timeout to the fetch call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const response = await fetch(endpointUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify({
-          image: base64Data,
-          analysis_type: 'document',
-          extraction_fields: [
-            'firstName', 'lastName', 'dateOfBirth', 'gender', 'phone', 
-            'email', 'address', 'insuranceId', 'insuranceProvider'
-          ],
-          output_format: 'json'
-        })
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
-
+      
+      clearTimeout(timeoutId); // Clear the timeout if response arrives
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', JSON.stringify(Object.fromEntries([...response.headers])));
+      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API error response:', errorText);
+        console.error('API error response text:', errorText);
         
         try {
           const errorData = JSON.parse(errorText);
-          console.error('API error details:', errorData);
+          console.error('API error details:', JSON.stringify(errorData));
           
           if (errorData.error && errorData.error.message) {
             throw new Error(`API error: ${errorData.error.message}`);
@@ -112,22 +146,36 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
         throw new Error(`API error: ${response.status} - ${response.statusText}`);
       }
 
-      const data = await response.json();
-      console.log('Response received from Grok API:', data);
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Response parsed as JSON:', JSON.stringify(data).substring(0, 200) + '...');
+      } catch (jsonError) {
+        console.error('Failed to parse response as JSON:', jsonError);
+        throw new Error('Invalid JSON response from API');
+      }
       
       return parseGrokResponse(data);
     } catch (fetchError: any) {
       console.error('Fetch error details:', fetchError);
       
-      // Provide helpful error messages for common issues
-      if (fetchError.message && fetchError.message.includes('Failed to fetch')) {
-        throw new Error('Network error. Please check your internet connection.');
+      // Try to provide more specific error messages
+      if (fetchError.name === 'AbortError') {
+        throw new Error('API request timed out. The server took too long to respond.');
+      } else if (fetchError.message && fetchError.message.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your internet connection or the API endpoint may be unavailable.');
+      } else if (fetchError.message && fetchError.message.includes('NetworkError')) {
+        throw new Error('Network error. There might be a CORS issue or the API server is not accessible.');
       }
       
       throw fetchError;
     }
   } catch (error: any) {
-    console.error('Error extracting patient data:', error.message, error.stack);
+    console.error('Error extracting patient data:', error.message);
+    console.error('Error stack:', error.stack);
     throw error;
   }
 };
@@ -140,7 +188,7 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
  */
 const parseGrokResponse = (apiResponse: any): ExtractedPatientData => {
   try {
-    console.log('Parsing Grok response:', apiResponse);
+    console.log('Parsing Grok response structure:', Object.keys(apiResponse));
     
     // The parsing logic will depend on Grok's actual response format
     // This is a placeholder assuming a specific format - adjust as needed
@@ -149,6 +197,7 @@ const parseGrokResponse = (apiResponse: any): ExtractedPatientData => {
     };
     
     if (apiResponse.extracted_data) {
+      console.log('Found extracted_data in response');
       const data = apiResponse.extracted_data;
       
       result.firstName = data.first_name || data.firstName;
@@ -171,12 +220,26 @@ const parseGrokResponse = (apiResponse: any): ExtractedPatientData => {
       result.insuranceProvider = data.insurance_provider || data.insuranceProvider;
       
       return result;
+    } else if (apiResponse.result && apiResponse.result.extracted_data) {
+      // Alternative response structure
+      console.log('Found result.extracted_data in response');
+      const data = apiResponse.result.extracted_data;
+      // Process similarly to above...
+      result.firstName = data.first_name || data.firstName;
+      result.lastName = data.last_name || data.lastName;
+      // ... and so on
+    } else if (apiResponse.data) {
+      // Another possible structure
+      console.log('Found data in response');
+      const data = apiResponse.data;
+      // Process similarly...
     }
     
     // Fallback for plain text/alternative formats
-    if (apiResponse.text) {
+    if (apiResponse.text || apiResponse.result?.text) {
       console.log('Attempting to parse as key-value pairs from text...');
-      const lines = apiResponse.text.split('\n');
+      const text = apiResponse.text || apiResponse.result?.text;
+      const lines = text.split('\n');
       for (const line of lines) {
         if (line.includes(':')) {
           const [key, value] = line.split(':', 2).map((s: string) => s.trim());
