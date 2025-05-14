@@ -72,14 +72,14 @@ router.post('/analyze', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
+          content: "You are an expert at extracting information from images. Your task is to extract ONLY information that is explicitly visible in the image. NEVER make up or generate information that is not visibly present. Leave fields empty if the information is not clearly visible in the image. Do not hallucinate data. Do not assume or generate placeholder data."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "This is a real patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look carefully for any text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return ONLY a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be thorough and don't leave any text unidentified."
+              text: "Extract ONLY the information that is explicitly visible in this patient ID/insurance card image. Do not generate, assume, or make up ANY information that is not clearly visible in the image.\n\nReturn a JSON object with these fields, leaving fields EMPTY if the information is not present:\n- firstName: (leave empty if not visible)\n- lastName: (leave empty if not visible)\n- dateOfBirth: in YYYY-MM-DD format (leave empty if not visible)\n- gender: (leave empty if not visible)\n- phone: (leave empty if not visible)\n- email: (leave empty if not visible)\n- address: with street, city, state, zipCode (leave any/all empty if not visible)\n- insuranceId: (leave empty if not visible)\n- insuranceProvider: (leave empty if not visible)\n\nDo NOT fabricate data. If you cannot read something clearly, leave that field empty. Never generate example/mock data."
             },
             {
               type: "image_url",
@@ -243,10 +243,16 @@ router.get('/test-page', (req: Request, res: Response) => {
     .raw-output { margin-top: 20px; background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
     button { margin-top: 10px; padding: 8px 16px; }
     .loading { display: none; margin-top: 10px; }
+    .note { background-color: #fffde7; padding: 10px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #ffd600; }
   </style>
 </head>
 <body>
   <h1>Document Scanning Test</h1>
+  
+  <div class="note">
+    <p><strong>Important:</strong> The AI model will only extract information that is clearly visible in the image. Fields without visible information will be left empty.</p>
+  </div>
+  
   <div class="container">
     <h2>Upload Image</h2>
     <input type="file" id="imageInput" accept="image/*">
@@ -363,7 +369,7 @@ router.get('/test-sample', async (req: Request, res: Response) => {
     
     // Sample insurance card image (base64 encoded small test image)
     // This is just a minimal sample - in production, use a real sample image
-    const sampleImageBase64 = 'data:image/png;base64,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';
+    const sampleImageBase64 = 'data:image/png;base64,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';
     
     console.log('Testing with sample insurance card image');
     
@@ -375,14 +381,14 @@ router.get('/test-sample', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
+          content: "You are an expert at extracting information from images. Your task is to extract ONLY information that is explicitly visible in the image. NEVER make up or generate information that is not visibly present. Leave fields empty if the information is not clearly visible in the image. Do not hallucinate data. Do not assume or generate placeholder data."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "This is an insurance card image. Extract ALL visible patient and insurance information. Look carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return ONLY a JSON object with these fields: firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider."
+              text: "Extract ONLY the information that is explicitly visible in this insurance card image. Do not generate, assume, or make up ANY information that is not clearly visible in the image.\n\nReturn a JSON object with these fields, leaving fields EMPTY if the information is not present:\n- firstName: (leave empty if not visible)\n- lastName: (leave empty if not visible)\n- dateOfBirth: in YYYY-MM-DD format (leave empty if not visible)\n- gender: (leave empty if not visible)\n- phone: (leave empty if not visible)\n- email: (leave empty if not visible)\n- address: with street, city, state, zipCode (leave any/all empty if not visible)\n- insuranceId: (leave empty if not visible)\n- insuranceProvider: (leave empty if not visible)\n\nDo NOT fabricate data. If you cannot read something clearly, leave that field empty. Never generate example/mock data."
             },
             {
               type: "image_url",
@@ -673,14 +679,14 @@ router.get('/test-patient', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
+          content: "You are an expert at extracting information from images. Your task is to extract ONLY information that is explicitly visible in the image. NEVER make up or generate information that is not visibly present. Leave fields empty if the information is not clearly visible in the image. Do not hallucinate data. Do not assume or generate placeholder data."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "This is a real patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look carefully for any text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return ONLY a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be thorough and don't leave any text unidentified."
+              text: "Extract ONLY the information that is explicitly visible in this patient ID/insurance card image. Do not generate, assume, or make up ANY information that is not clearly visible in the image.\n\nReturn a JSON object with these fields, leaving fields EMPTY if the information is not present:\n- firstName: (leave empty if not visible)\n- lastName: (leave empty if not visible)\n- dateOfBirth: in YYYY-MM-DD format (leave empty if not visible)\n- gender: (leave empty if not visible)\n- phone: (leave empty if not visible)\n- email: (leave empty if not visible)\n- address: with street, city, state, zipCode (leave any/all empty if not visible)\n- insuranceId: (leave empty if not visible)\n- insuranceProvider: (leave empty if not visible)\n\nDo NOT fabricate data. If you cannot read something clearly, leave that field empty. Never generate example/mock data."
             },
             {
               type: "image_url",
