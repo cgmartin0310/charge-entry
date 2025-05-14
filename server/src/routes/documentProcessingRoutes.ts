@@ -72,14 +72,14 @@ router.post('/analyze', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting information from images. Your task is to extract ONLY information that is explicitly visible in the image. NEVER make up or generate information that is not visibly present. Leave fields empty if the information is not clearly visible in the image. Do not hallucinate data. Do not assume or generate placeholder data."
+          content: "IMPORTANT: You are strictly an information extractor. Your ONLY task is to read information directly visible in the image. DO NOT HALLUCINATE, DO NOT MAKE UP, DO NOT GENERATE ANY DATA. If something is not EXPLICITLY visible in the image, leave that field COMPLETELY EMPTY. Being accurate is critical - it's better to leave a field empty than to make anything up. False information could cause serious harm. ONLY extract what you can actually see in the image. Remember: empty fields are expected and acceptable."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Extract ONLY the information that is explicitly visible in this patient ID/insurance card image. Do not generate, assume, or make up ANY information that is not clearly visible in the image.\n\nReturn a JSON object with these fields, leaving fields EMPTY if the information is not present:\n- firstName: (leave empty if not visible)\n- lastName: (leave empty if not visible)\n- dateOfBirth: in YYYY-MM-DD format (leave empty if not visible)\n- gender: (leave empty if not visible)\n- phone: (leave empty if not visible)\n- email: (leave empty if not visible)\n- address: with street, city, state, zipCode (leave any/all empty if not visible)\n- insuranceId: (leave empty if not visible)\n- insuranceProvider: (leave empty if not visible)\n\nDo NOT fabricate data. If you cannot read something clearly, leave that field empty. Never generate example/mock data."
+              text: "I need you to extract ONLY information that is EXPLICITLY visible in this document image. This is for a medical/healthcare application where accuracy is critical.\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n- DO NOT make up, generate, or hallucinate ANY information\n- If you cannot clearly see information for a field, the field MUST be empty (\"\")\n- DO NOT use placeholders or sample data\n- DO NOT guess or infer information that isn't explicitly visible\n- EMPTY values are EXPECTED and ACCEPTABLE\n\nReturn a JSON object with these fields, and ONLY include values you can directly read from the image:\n- firstName: \"\" (EMPTY if not clearly visible)\n- lastName: \"\" (EMPTY if not clearly visible)\n- dateOfBirth: \"\" (EMPTY if not clearly visible, otherwise in YYYY-MM-DD format)\n- gender: \"\" (EMPTY if not clearly visible)\n- phone: \"\" (EMPTY if not clearly visible)\n- email: \"\" (EMPTY if not clearly visible)\n- address: { street: \"\", city: \"\", state: \"\", zipCode: \"\" } (each EMPTY if not clearly visible)\n- insuranceId: \"\" (EMPTY if not clearly visible)\n- insuranceProvider: \"\" (EMPTY if not clearly visible)\n\nI need to emphasize again: ACCURACY is critical, leaving fields EMPTY is EXPECTED and ACCEPTABLE. Providing false information could result in healthcare billing errors."
             },
             {
               type: "image_url",
@@ -90,7 +90,7 @@ router.post('/analyze', async (req: Request, res: Response) => {
           ]
         }
       ],
-      temperature: 0.1,
+      temperature: 0,
       max_tokens: 1500
     };
 
@@ -237,20 +237,32 @@ router.get('/test-page', (req: Request, res: Response) => {
   <title>Document Scanning Test</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
     .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
     .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
     .raw-output { margin-top: 20px; background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
     button { margin-top: 10px; padding: 8px 16px; }
     .loading { display: none; margin-top: 10px; }
-    .note { background-color: #fffde7; padding: 10px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #ffd600; }
+    .note { background-color: #fffde7; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #ffd600; }
+    .warning { background-color: #fff4e5; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #ff9800; font-weight: bold; }
   </style>
 </head>
 <body>
   <h1>Document Scanning Test</h1>
   
+  <div class="warning">
+    <p>⚠️ IMPORTANT: This test will only extract text that is ACTUALLY VISIBLE in the image.</p>
+    <p>Empty fields are EXPECTED and ACCEPTABLE! The AI will NOT generate fake data.</p>
+  </div>
+  
   <div class="note">
-    <p><strong>Important:</strong> The AI model will only extract information that is clearly visible in the image. Fields without visible information will be left empty.</p>
+    <p>This document scanning tool is configured to prioritize accuracy over completeness. It will:</p>
+    <ul>
+      <li>Only extract information explicitly visible in the image</li>
+      <li>Leave fields completely empty if information isn't clearly visible</li>
+      <li>Never make up, hallucinate, or generate any information</li>
+    </ul>
+    <p>This is intentional to avoid incorrect data in healthcare records.</p>
   </div>
   
   <div class="container">
@@ -381,14 +393,14 @@ router.get('/test-sample', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting information from images. Your task is to extract ONLY information that is explicitly visible in the image. NEVER make up or generate information that is not visibly present. Leave fields empty if the information is not clearly visible in the image. Do not hallucinate data. Do not assume or generate placeholder data."
+          content: "IMPORTANT: You are strictly an information extractor. Your ONLY task is to read information directly visible in the image. DO NOT HALLUCINATE, DO NOT MAKE UP, DO NOT GENERATE ANY DATA. If something is not EXPLICITLY visible in the image, leave that field COMPLETELY EMPTY. Being accurate is critical - it's better to leave a field empty than to make anything up. False information could cause serious harm. ONLY extract what you can actually see in the image. Remember: empty fields are expected and acceptable."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Extract ONLY the information that is explicitly visible in this insurance card image. Do not generate, assume, or make up ANY information that is not clearly visible in the image.\n\nReturn a JSON object with these fields, leaving fields EMPTY if the information is not present:\n- firstName: (leave empty if not visible)\n- lastName: (leave empty if not visible)\n- dateOfBirth: in YYYY-MM-DD format (leave empty if not visible)\n- gender: (leave empty if not visible)\n- phone: (leave empty if not visible)\n- email: (leave empty if not visible)\n- address: with street, city, state, zipCode (leave any/all empty if not visible)\n- insuranceId: (leave empty if not visible)\n- insuranceProvider: (leave empty if not visible)\n\nDo NOT fabricate data. If you cannot read something clearly, leave that field empty. Never generate example/mock data."
+              text: "I need you to extract ONLY information that is EXPLICITLY visible in this document image. This is for a medical/healthcare application where accuracy is critical.\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n- DO NOT make up, generate, or hallucinate ANY information\n- If you cannot clearly see information for a field, the field MUST be empty (\"\")\n- DO NOT use placeholders or sample data\n- DO NOT guess or infer information that isn't explicitly visible\n- EMPTY values are EXPECTED and ACCEPTABLE\n\nReturn a JSON object with these fields, and ONLY include values you can directly read from the image:\n- firstName: \"\" (EMPTY if not clearly visible)\n- lastName: \"\" (EMPTY if not clearly visible)\n- dateOfBirth: \"\" (EMPTY if not clearly visible, otherwise in YYYY-MM-DD format)\n- gender: \"\" (EMPTY if not clearly visible)\n- phone: \"\" (EMPTY if not clearly visible)\n- email: \"\" (EMPTY if not clearly visible)\n- address: { street: \"\", city: \"\", state: \"\", zipCode: \"\" } (each EMPTY if not clearly visible)\n- insuranceId: \"\" (EMPTY if not clearly visible)\n- insuranceProvider: \"\" (EMPTY if not clearly visible)\n\nI need to emphasize again: ACCURACY is critical, leaving fields EMPTY is EXPECTED and ACCEPTABLE. Providing false information could result in healthcare billing errors."
             },
             {
               type: "image_url",
@@ -399,7 +411,7 @@ router.get('/test-sample', async (req: Request, res: Response) => {
           ]
         }
       ],
-      temperature: 0.1,
+      temperature: 0,
       max_tokens: 1500
     };
 
@@ -499,17 +511,16 @@ router.get('/test-local', async (req: Request, res: Response) => {
     
     // Read the file and convert to base64
     const imageBuffer = fs.readFileSync(imagePath);
-    const base64Data = imageBuffer.toString('base64');
-    
-    // Determine media type from file extension or default to jpeg
+    // Properly format base64 with data:image prefix
     let mediaType = 'image/jpeg';
     if (imagePath.toLowerCase().endsWith('.png')) {
       mediaType = 'image/png';
     }
+    const base64Data = `data:${mediaType};base64,${imageBuffer.toString('base64')}`;
     
-    console.log('Testing with local image file');
+    console.log('Testing with local image file - base64 prefix:', base64Data.substring(0, 50));
     
-    // Call Grok API
+    // Call Grok API with fixed request format
     const endpointUrl = 'https://api.x.ai/v1/chat/completions';
     
     const requestBody = {
@@ -517,26 +528,25 @@ router.get('/test-local', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting patient information from images of medical documents, IDs, and insurance cards. You are extremely thorough and will extract every possible piece of information from the image, even if it's partially visible or unclear. Never leave fields blank if there's any text visible that might be relevant."
+          content: "IMPORTANT: You are strictly an information extractor. Your ONLY task is to read information directly visible in the image. DO NOT HALLUCINATE, DO NOT MAKE UP, DO NOT GENERATE ANY DATA. If something is not EXPLICITLY visible in the image, leave that field COMPLETELY EMPTY. Being accurate is critical - it's better to leave a field empty than to make anything up. False information could cause serious harm. ONLY extract what you can actually see in the image. Remember: empty fields are expected and acceptable."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "This is a patient identification or insurance card image. Extract ALL visible patient and insurance information from this image. Look very carefully for text that represents: name, date of birth, gender, ID numbers, phone numbers, email addresses, street addresses, cities, states, postal codes, insurance details, member IDs, group numbers, etc. Return a JSON object with these fields (even partial matches should be included): firstName, lastName, dateOfBirth (YYYY-MM-DD format), gender, phone, email, address (with street, city, state, zipCode), insuranceId, insuranceProvider. Be very thorough and don't leave any text unidentified."
+              text: "I need you to extract ONLY information that is EXPLICITLY visible in this document image. This is for a medical/healthcare application where accuracy is critical.\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n- DO NOT make up, generate, or hallucinate ANY information\n- If you cannot clearly see information for a field, the field MUST be empty (\"\")\n- DO NOT use placeholders or sample data\n- DO NOT guess or infer information that isn't explicitly visible\n- EMPTY values are EXPECTED and ACCEPTABLE\n\nReturn a JSON object with these fields, and ONLY include values you can directly read from the image:\n- firstName: \"\" (EMPTY if not clearly visible)\n- lastName: \"\" (EMPTY if not clearly visible)\n- dateOfBirth: \"\" (EMPTY if not clearly visible, otherwise in YYYY-MM-DD format)\n- gender: \"\" (EMPTY if not clearly visible)\n- phone: \"\" (EMPTY if not clearly visible)\n- email: \"\" (EMPTY if not clearly visible)\n- address: { street: \"\", city: \"\", state: \"\", zipCode: \"\" } (each EMPTY if not clearly visible)\n- insuranceId: \"\" (EMPTY if not clearly visible)\n- insuranceProvider: \"\" (EMPTY if not clearly visible)\n\nI need to emphasize again: ACCURACY is critical, leaving fields EMPTY is EXPECTED and ACCEPTABLE. Providing false information could result in healthcare billing errors."
             },
             {
-              type: "image",
-              image_data: {
-                data: base64Data,
-                media_type: mediaType
+              type: "image_url",
+              image_url: {
+                url: base64Data
               }
             }
           ]
         }
       ],
-      temperature: 0.1,
+      temperature: 0,
       max_tokens: 1500
     };
 
@@ -679,14 +689,14 @@ router.get('/test-patient', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting information from images. Your task is to extract ONLY information that is explicitly visible in the image. NEVER make up or generate information that is not visibly present. Leave fields empty if the information is not clearly visible in the image. Do not hallucinate data. Do not assume or generate placeholder data."
+          content: "IMPORTANT: You are strictly an information extractor. Your ONLY task is to read information directly visible in the image. DO NOT HALLUCINATE, DO NOT MAKE UP, DO NOT GENERATE ANY DATA. If something is not EXPLICITLY visible in the image, leave that field COMPLETELY EMPTY. Being accurate is critical - it's better to leave a field empty than to make anything up. False information could cause serious harm. ONLY extract what you can actually see in the image. Remember: empty fields are expected and acceptable."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Extract ONLY the information that is explicitly visible in this patient ID/insurance card image. Do not generate, assume, or make up ANY information that is not clearly visible in the image.\n\nReturn a JSON object with these fields, leaving fields EMPTY if the information is not present:\n- firstName: (leave empty if not visible)\n- lastName: (leave empty if not visible)\n- dateOfBirth: in YYYY-MM-DD format (leave empty if not visible)\n- gender: (leave empty if not visible)\n- phone: (leave empty if not visible)\n- email: (leave empty if not visible)\n- address: with street, city, state, zipCode (leave any/all empty if not visible)\n- insuranceId: (leave empty if not visible)\n- insuranceProvider: (leave empty if not visible)\n\nDo NOT fabricate data. If you cannot read something clearly, leave that field empty. Never generate example/mock data."
+              text: "I need you to extract ONLY information that is EXPLICITLY visible in this document image. This is for a medical/healthcare application where accuracy is critical.\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n- DO NOT make up, generate, or hallucinate ANY information\n- If you cannot clearly see information for a field, the field MUST be empty (\"\")\n- DO NOT use placeholders or sample data\n- DO NOT guess or infer information that isn't explicitly visible\n- EMPTY values are EXPECTED and ACCEPTABLE\n\nReturn a JSON object with these fields, and ONLY include values you can directly read from the image:\n- firstName: \"\" (EMPTY if not clearly visible)\n- lastName: \"\" (EMPTY if not clearly visible)\n- dateOfBirth: \"\" (EMPTY if not clearly visible, otherwise in YYYY-MM-DD format)\n- gender: \"\" (EMPTY if not clearly visible)\n- phone: \"\" (EMPTY if not clearly visible)\n- email: \"\" (EMPTY if not clearly visible)\n- address: { street: \"\", city: \"\", state: \"\", zipCode: \"\" } (each EMPTY if not clearly visible)\n- insuranceId: \"\" (EMPTY if not clearly visible)\n- insuranceProvider: \"\" (EMPTY if not clearly visible)\n\nI need to emphasize again: ACCURACY is critical, leaving fields EMPTY is EXPECTED and ACCEPTABLE. Providing false information could result in healthcare billing errors."
             },
             {
               type: "image_url",
@@ -697,7 +707,7 @@ router.get('/test-patient', async (req: Request, res: Response) => {
           ]
         }
       ],
-      temperature: 0.1,
+      temperature: 0,
       max_tokens: 1500
     };
 
