@@ -1865,4 +1865,315 @@ function mapRawDataToFields(rawText: string) {
   return result;
 }
 
+/**
+ * Direct pipe to Grok with absolute minimal processing
+ * GET /api/document-processing/direct-pipe-test
+ */
+router.get('/direct-pipe-test', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct Pipe Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+    .warning { background-color: #ffe0e0; padding: 15px; margin: 15px 0; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Direct Pipe Test</h1>
+  
+  <div class="warning">
+    <p>This test uses the exact prompt: <strong>"I want you to pull the relevant patient info from this pic"</strong></p>
+    <p>It directly returns the raw API response without any processing, exactly as received from Grok.</p>
+  </div>
+  
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Process with Direct Pipe</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="result">
+      <h3>Raw API Response:</h3>
+      <pre id="result">No results yet</pre>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const resultArea = document.getElementById('result');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        resultArea.textContent = 'Sending request...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/process-direct-pipe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          resultArea.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        resultArea.textContent = data.rawContent || JSON.stringify(data, null, 2);
+      } catch (error) {
+        loading.style.display = 'none';
+        resultArea.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+/**
+ * Process image with direct pipe (exact prompt, no processing)
+ * POST /api/document-processing/process-direct-pipe
+ */
+router.post('/process-direct-pipe', async (req: Request, res: Response) => {
+  try {
+    const { imageData } = req.body;
+    
+    if (!imageData) {
+      return res.status(400).json({ message: 'No image data provided' });
+    }
+    
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // Use the exact prompt requested by the user
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    const requestBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "I want you to pull the relevant patient info from this pic"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageData
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+    
+    console.log('Sending direct pipe request...');
+    
+    const response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ 
+        message: 'Error from Grok API',
+        error: errorText
+      });
+    }
+
+    // Get the raw response
+    const data = await response.json() as GrokApiResponse;
+    const content = data.choices[0]?.message?.content || '';
+    
+    console.log('Received direct pipe response, length:', content.length);
+    if (content.length > 100) {
+      console.log('First 100 chars:', content.substring(0, 100));
+    }
+    
+    // Return the raw content directly
+    return res.json({ 
+      success: true,
+      rawContent: content,
+      // Include these fields for debugging only
+      model: data.model,
+      promptTokens: data.usage.prompt_tokens,
+      completionTokens: data.usage.completion_tokens
+    });
+  } catch (error: any) {
+    console.error('Error in direct pipe:', error);
+    return res.status(500).json({
+      message: 'Error processing with direct pipe',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Direct pipe endpoint that uses the exact prompt and returns the raw response
+ * GET /api/document-processing/direct-pipe
+ */
+router.get('/direct-pipe', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct Pipe Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+    .note { background-color: #e3f2fd; padding: 15px; margin: 15px 0; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Direct Pipe Test</h1>
+  
+  <div class="note">
+    <p>This test uses the exact prompt: <strong>"I want you to pull the relevant patient info from this pic"</strong></p>
+    <p>It directly returns the raw API response without any processing, exactly as received from Grok.</p>
+  </div>
+  
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Process with Direct Pipe</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="result">
+      <h3>Raw API Response:</h3>
+      <pre id="result">No results yet</pre>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const resultArea = document.getElementById('result');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        resultArea.textContent = 'Sending request...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/process-direct-pipe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          resultArea.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        resultArea.textContent = data.rawContent || JSON.stringify(data, null, 2);
+      } catch (error) {
+        loading.style.display = 'none';
+        resultArea.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
 export default router; 
