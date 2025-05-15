@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
-import { extractPatientDataFromImage, extractPatientDataWithOpenAI, ExtractedPatientData } from '../utils/grokService';
+import { extractPatientDataWithOpenAI, ExtractedPatientData } from '../utils/documentProcessingService';
 
 interface Patient {
   id: string;
