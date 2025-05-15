@@ -2310,7 +2310,7 @@ router.post('/process-openai', async (req: Request, res: Response) => {
     const endpointUrl = 'https://api.openai.com/v1/chat/completions';
     
     const requestBody = {
-      model: "gpt-4-vision-preview",
+      model: "gpt-4o",
       messages: [
         {
           role: "user",
