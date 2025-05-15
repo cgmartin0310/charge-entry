@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
-import { extractPatientDataFromImage, ExtractedPatientData } from '../utils/grokService';
+import { extractPatientDataFromImage, extractPatientDataWithOpenAI, ExtractedPatientData } from '../utils/grokService';
 
 interface Patient {
   id: string;
@@ -377,15 +377,15 @@ const PatientList: React.FC = () => {
     }
   };
 
-  const processImageWithGrok = async () => {
+  const processImageWithAI = async () => {
     if (!imagePreview) return;
 
     try {
       setProcessingScan(true);
       setScanError(null);
 
-      // Use the Grok service to extract patient data
-      const extractedData = await extractPatientDataFromImage(imagePreview);
+      // Use the OpenAI service to extract patient data
+      const extractedData = await extractPatientDataWithOpenAI(imagePreview);
       
       // Apply extracted data to form
       if (extractedData) {
@@ -463,7 +463,7 @@ const PatientList: React.FC = () => {
                 {modalType === 'add' && (
                   <div className="scan-section">
                     <h4>Scan ID or Insurance Card</h4>
-                    <p className="scan-instruction">Upload or take a photo of an ID or insurance card to automatically fill in patient details.</p>
+                    <p className="scan-instruction">Upload or take a photo of an ID or insurance card to automatically fill in patient details using OpenAI document processing.</p>
                     
                     <div className="scan-controls">
                       <button 
@@ -494,27 +494,26 @@ const PatientList: React.FC = () => {
                           <button 
                             type="button" 
                             className="btn btn-primary"
-                            onClick={processImageWithGrok}
+                            onClick={processImageWithAI}
                             disabled={processingScan}
                           >
-                            {processingScan ? 'Processing...' : 'Extract Data'}
+                            {processingScan ? 'Processing...' : 'Extract Data with AI'}
                           </button>
                           <button 
                             type="button" 
-                            className="btn"
+                            className="btn btn-secondary"
                             onClick={clearImage}
                           >
-                            Clear
+                            Clear Image
                           </button>
                         </div>
+                        {scanError && <div className="scan-error">{scanError}</div>}
                       </div>
                     )}
                     
-                    {scanError && (
-                      <div className="error-message scan-error">
-                        {scanError}
-                      </div>
-                    )}
+                    <div className="form-note">
+                      <p><strong>Note:</strong> Our AI document scanner uses OpenAI to extract information from ID cards and insurance cards with greater accuracy. For best results, ensure the image is clear and all text is readable.</p>
+                    </div>
                     
                     <div className="divider">
                       <span>or enter manually</span>
