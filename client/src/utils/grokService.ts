@@ -163,6 +163,8 @@ export const extractPatientDataFromImage = async (imageData: string): Promise<Ex
  */
 export const extractPatientDataWithOpenAI = async (imageData: string): Promise<ExtractedPatientData> => {
   try {
+    console.debug('Starting OpenAI document processing');
+    
     // Use mock data if flag is set (for development/testing)
     if (USE_MOCK_DATA) {
       console.log('Using mock data instead of API call (for testing)');
@@ -176,8 +178,8 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
       throw new Error('No image data provided');
     }
 
-    console.log('OpenAI: Image data format check:', imageData.substring(0, 50) + '...');
-    console.log('OpenAI: Image data length:', imageData.length);
+    console.debug('OpenAI: Image data format check:', imageData.substring(0, 50) + '...');
+    console.debug('OpenAI: Image data length:', imageData.length);
 
     // Check if the image data is in the expected format (base64)
     if (!imageData.startsWith('data:image')) {
@@ -193,7 +195,7 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
     // Build the full endpoint URL for OpenAI processing
     const endpointUrl = `${baseApiUrl}/api/document-processing/process-openai`;
     
-    console.log('Sending request to OpenAI document processing API at:', endpointUrl);
+    console.debug('Sending request to OpenAI document processing API at:', endpointUrl);
     
     // Implement retry logic
     const maxRetries = 2;
@@ -203,13 +205,17 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
     while (retryCount <= maxRetries) {
       try {
         if (retryCount > 0) {
-          console.log(`OpenAI retry attempt ${retryCount} of ${maxRetries}...`);
+          console.debug(`OpenAI retry attempt ${retryCount} of ${maxRetries}...`);
           // Add a short delay before retrying
           await new Promise(resolve => setTimeout(resolve, 1500 * retryCount));
         }
         
+        console.debug('Setting up fetch request to OpenAI endpoint');
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        
+        console.debug('Preparing to send request to:', endpointUrl);
+        console.debug('Request body length:', JSON.stringify({ imageData }).length);
         
         const response = await fetch(endpointUrl, {
           method: 'POST',
@@ -222,7 +228,7 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
         
         clearTimeout(timeoutId); // Clear the timeout if response arrives
         
-        console.log('OpenAI response status:', response.status);
+        console.debug('OpenAI response status:', response.status);
         
         if (!response.ok) {
           const errorText = await response.text();
@@ -243,13 +249,16 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
           throw new Error(`Error: ${response.status} - ${response.statusText}`);
         }
 
+        console.debug('Received OK response from OpenAI endpoint');
         const data = await response.json();
-        console.log('Response received from OpenAI document processing API');
+        console.debug('Response data structure:', Object.keys(data));
         
         // For OpenAI, we need to extract and map the data ourselves
         if (data.success && data.content) {
+          console.debug('Data has success and content properties');
           // Map the raw OpenAI response to our structured format
           const extractedData = mapOpenAIResponseToPatientData(data.content);
+          console.debug('Successfully mapped OpenAI response to patient data:', extractedData);
           return extractedData;
         } else {
           console.error('Unexpected response format from OpenAI:', data);

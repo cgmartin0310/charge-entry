@@ -383,59 +383,78 @@ const PatientList: React.FC = () => {
     try {
       setProcessingScan(true);
       setScanError(null);
+      
+      console.log('Starting AI document processing for patient data');
 
       // Use the OpenAI service to extract patient data
-      const extractedData = await extractPatientDataWithOpenAI(imagePreview);
-      
-      // Apply extracted data to form
-      if (extractedData) {
-        setFormData(prev => ({
-          ...prev,
-          firstName: extractedData.firstName || prev.firstName,
-          lastName: extractedData.lastName || prev.lastName,
-          dateOfBirth: extractedData.dateOfBirth || prev.dateOfBirth,
-          gender: extractedData.gender || prev.gender,
-          phone: extractedData.phone || prev.phone,
-          email: extractedData.email || prev.email,
-          address: {
-            street: extractedData.address?.street || prev.address.street,
-            city: extractedData.address?.city || prev.address.city,
-            state: extractedData.address?.state || prev.address.state,
-            zipCode: extractedData.address?.zipCode || prev.address.zipCode
-          },
-          insuranceInfo: {
-            primary: {
-              ...prev.insuranceInfo.primary,
-              memberId: extractedData.insuranceId || prev.insuranceInfo.primary.memberId
+      try {
+        const extractedData = await extractPatientDataWithOpenAI(imagePreview);
+        console.log('Successfully received data from OpenAI processing:', extractedData);
+        
+        // Apply extracted data to form
+        if (extractedData) {
+          setFormData(prev => ({
+            ...prev,
+            firstName: extractedData.firstName || prev.firstName,
+            lastName: extractedData.lastName || prev.lastName,
+            dateOfBirth: extractedData.dateOfBirth || prev.dateOfBirth,
+            gender: extractedData.gender || prev.gender,
+            phone: extractedData.phone || prev.phone,
+            email: extractedData.email || prev.email,
+            address: {
+              street: extractedData.address?.street || prev.address.street,
+              city: extractedData.address?.city || prev.address.city,
+              state: extractedData.address?.state || prev.address.state,
+              zipCode: extractedData.address?.zipCode || prev.address.zipCode
             },
-            secondary: prev.insuranceInfo.secondary
-          }
-        }));
+            insuranceInfo: {
+              primary: {
+                ...prev.insuranceInfo.primary,
+                memberId: extractedData.insuranceId || prev.insuranceInfo.primary.memberId
+              },
+              secondary: prev.insuranceInfo.secondary
+            }
+          }));
 
-        // If insurance provider is detected, try to find matching payer
-        if (extractedData.insuranceProvider && payers.length > 0) {
-          const matchedPayer = payers.find(p => 
-            p.name.toLowerCase().includes(extractedData.insuranceProvider?.toLowerCase() || '')
-          );
-          
-          if (matchedPayer) {
-            setFormData(prev => ({
-              ...prev,
-              insuranceInfo: {
-                ...prev.insuranceInfo,
-                primary: {
-                  ...prev.insuranceInfo.primary,
-                  payerId: matchedPayer.id
+          // If insurance provider is detected, try to find matching payer
+          if (extractedData.insuranceProvider && payers.length > 0) {
+            const matchedPayer = payers.find(p => 
+              p.name.toLowerCase().includes(extractedData.insuranceProvider?.toLowerCase() || '')
+            );
+            
+            if (matchedPayer) {
+              setFormData(prev => ({
+                ...prev,
+                insuranceInfo: {
+                  ...prev.insuranceInfo,
+                  primary: {
+                    ...prev.insuranceInfo.primary,
+                    payerId: matchedPayer.id
+                  }
                 }
-              }
-            }));
+              }));
+            }
           }
+        } else {
+          console.warn('No data extracted from the image');
+          setScanError('No information could be extracted from the image. Please ensure the image is clear and try again, or enter information manually.');
         }
+      } catch (apiError: any) {
+        console.error('API error during OpenAI processing:', apiError);
+        setScanError(`OpenAI processing error: ${apiError.message}`);
+        throw apiError; // Re-throw to ensure we see the full error
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error processing image:', err);
-      setScanError('Failed to process image. Please try again or enter information manually.');
+      // Display more specific error messages based on the type of error
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        setScanError('Network error: Unable to reach the document processing service. Please check your connection.');
+      } else if (err.message?.includes('timeout') || err.message?.includes('Timeout')) {
+        setScanError('The request timed out. The server might be busy, please try again later.');
+      } else {
+        setScanError(`Failed to process image: ${err.message}. Please try again or enter information manually.`);
+      }
     } finally {
       setProcessingScan(false);
     }
