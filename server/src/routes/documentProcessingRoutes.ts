@@ -2176,4 +2176,342 @@ router.get('/direct-pipe', (req: Request, res: Response) => {
   res.send(html);
 });
 
+/**
+ * OpenAI Vision API test 
+ * GET /api/document-processing/openai-test
+ */
+router.get('/openai-test', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenAI Vision API Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+    .note { background-color: #f8eafa; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #9c27b0; }
+  </style>
+</head>
+<body>
+  <h1>OpenAI Vision API Test</h1>
+  
+  <div class="note">
+    <p>This test uses OpenAI's Vision API instead of Grok.</p>
+    <p>It uses the prompt: <strong>"Extract all patient information from this image including name, date of birth, address, phone, email, insurance details."</strong></p>
+    <p>Note: You must set OPENAI_API_KEY in your environment variables.</p>
+  </div>
+  
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Process with OpenAI</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="result">
+      <h3>OpenAI Response:</h3>
+      <pre id="result">No results yet</pre>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const resultArea = document.getElementById('result');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        resultArea.textContent = 'Sending request to OpenAI...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/process-openai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          resultArea.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        resultArea.textContent = data.content || JSON.stringify(data, null, 2);
+      } catch (error) {
+        loading.style.display = 'none';
+        resultArea.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+/**
+ * Process image with OpenAI Vision API
+ * POST /api/document-processing/process-openai
+ */
+router.post('/process-openai', async (req: Request, res: Response) => {
+  try {
+    const { imageData } = req.body;
+    
+    if (!imageData) {
+      return res.status(400).json({ message: 'No image data provided' });
+    }
+    
+    // Get API key from environment variable
+    const apiKey = process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(500).json({ message: 'OpenAI API key not configured (OPENAI_API_KEY environment variable)' });
+    }
+    
+    // Use OpenAI API
+    const endpointUrl = 'https://api.openai.com/v1/chat/completions';
+    
+    const requestBody = {
+      model: "gpt-4-vision-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Extract all patient information from this image including name, date of birth, address, phone, email, insurance details."
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageData
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 1000
+    };
+    
+    console.log('Sending OpenAI Vision API request...');
+    
+    const response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ 
+        message: 'Error from OpenAI API',
+        error: errorText
+      });
+    }
+
+    // Get the response
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    console.log('Received OpenAI response, length:', content.length);
+    if (content.length > 100) {
+      console.log('First 100 chars:', content.substring(0, 100));
+    }
+    
+    // Return the content
+    return res.json({ 
+      success: true,
+      content: content,
+      model: data.model,
+      usage: data.usage
+    });
+  } catch (error: any) {
+    console.error('Error in OpenAI Vision API:', error);
+    return res.status(500).json({
+      message: 'Error processing with OpenAI',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Test with Test_Patient.jpg with extensive debug info
+ * GET /api/document-processing/debug-test
+ */
+router.get('/debug-test', async (req: Request, res: Response) => {
+  try {
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // Import fs to read the file
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Path to the test image (relative to project root)
+    const imagePath = path.join(process.cwd(), 'Test_Patient.jpg');
+    
+    console.log('Reading Test_Patient.jpg for debug test from:', imagePath);
+    
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ 
+        message: 'Test_Patient.jpg not found',
+        searchPath: imagePath
+      });
+    }
+    
+    // Read the file and convert to base64
+    const imageBuffer = fs.readFileSync(imagePath);
+    const fileSize = imageBuffer.length;
+    const base64Data = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+    
+    // Basic file info
+    const fileInfo = {
+      path: imagePath,
+      size: fileSize,
+      base64Length: base64Data.length,
+      base64Prefix: base64Data.substring(0, 50) + '...'
+    };
+    
+    // Call Grok API with the most basic prompt
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    const promptText = "I want you to pull the relevant patient info from this pic";
+    
+    const requestBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: promptText
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: base64Data
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+    
+    console.log('Sending API request for debug test...');
+    
+    const response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    const responseStatus = response.status;
+    const responseHeaders = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    
+    let responseData;
+    let responseContent = '';
+    
+    if (response.ok) {
+      const data = await response.json();
+      responseData = data;
+      responseContent = data.choices?.[0]?.message?.content || '';
+    } else {
+      const errorText = await response.text();
+      responseContent = `Error: ${errorText}`;
+    }
+    
+    const imageTokens = responseData?.usage?.prompt_tokens_details?.image_tokens || 0;
+    
+    // Return extensive debug information
+    return res.json({
+      fileInfo: fileInfo,
+      requestDetails: {
+        url: endpointUrl,
+        prompt: promptText,
+        model: requestBody.model,
+        requestBodySize: JSON.stringify(requestBody).length
+      },
+      responseDetails: {
+        status: responseStatus,
+        headers: responseHeaders,
+        imageTokens: imageTokens,
+        totalTokens: responseData?.usage?.total_tokens || 0,
+        model: responseData?.model || ''
+      },
+      rawContent: responseContent,
+      addressExtract: extractAddress(responseContent)
+    });
+  } catch (error: any) {
+    console.error('Error in debug test:', error);
+    return res.status(500).json({
+      message: 'Error in debug test',
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+/**
+ * Extract address from text content for debugging
+ */
+function extractAddress(text: string) {
+  const addressRegex = /address:?\s*([^.\n]+)/i;
+  const addressMatch = text.match(addressRegex);
+  return addressMatch ? addressMatch[1].trim() : 'Not found';
+}
+
 export default router; 
