@@ -386,6 +386,16 @@ const PatientList: React.FC = () => {
       
       console.log('Starting AI document processing for patient data');
 
+      // Check if image size is too large (above 5MB)
+      const estimatedSizeInMB = (imagePreview.length * 0.75) / (1024 * 1024); // Rough estimate of base64 size in MB
+      console.log('Estimated image size in MB:', estimatedSizeInMB);
+      
+      if (estimatedSizeInMB > 5) {
+        setScanError(`The image is too large (approximately ${estimatedSizeInMB.toFixed(1)}MB). Please use an image smaller than 5MB for faster processing and better reliability.`);
+        setProcessingScan(false);
+        return;
+      }
+
       // Use the OpenAI service to extract patient data
       try {
         const extractedData = await extractPatientDataWithOpenAI(imagePreview);
@@ -435,13 +445,29 @@ const PatientList: React.FC = () => {
               }));
             }
           }
+          
+          // Show success message if data was extracted
+          if (extractedData.firstName || extractedData.lastName || extractedData.address?.street) {
+            setScanError(null);
+          } else {
+            setScanError('Limited data could be extracted. Please verify the information and fill in any missing fields manually.');
+          }
         } else {
           console.warn('No data extracted from the image');
           setScanError('No information could be extracted from the image. Please ensure the image is clear and try again, or enter information manually.');
         }
       } catch (apiError: any) {
         console.error('API error during OpenAI processing:', apiError);
-        setScanError(`OpenAI processing error: ${apiError.message}`);
+        
+        // Provide more specific error messages for OpenAI errors
+        if (apiError.message?.includes('Empty response')) {
+          setScanError('The server returned an empty response. This could be due to the image being too large or a server timeout. Please try a smaller, clearer image or try again later.');
+        } else if (apiError.message?.includes('timeout') || apiError.message?.includes('Timeout')) {
+          setScanError('The request timed out. Please try a smaller image or try again when the AI service is less busy.');
+        } else {
+          setScanError(`OpenAI processing error: ${apiError.message}`);
+        }
+        
         throw apiError; // Re-throw to ensure we see the full error
       }
 
@@ -449,11 +475,13 @@ const PatientList: React.FC = () => {
       console.error('Error processing image:', err);
       // Display more specific error messages based on the type of error
       if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
-        setScanError('Network error: Unable to reach the document processing service. Please check your connection.');
+        setScanError('Network error: Unable to reach the document processing service. Please check your connection and try again.');
       } else if (err.message?.includes('timeout') || err.message?.includes('Timeout')) {
-        setScanError('The request timed out. The server might be busy, please try again later.');
+        setScanError('The request timed out. Please try using a smaller image or try again later when the AI service is less busy.');
+      } else if (err.message?.includes('Empty response')) {
+        setScanError('The server returned an empty response. Please try a smaller image, ensure the image is clear, or try again later.');
       } else {
-        setScanError(`Failed to process image: ${err.message}. Please try again or enter information manually.`);
+        setScanError(`Failed to process image: ${err.message}. Please try again with a smaller, clearer image or enter information manually.`);
       }
     } finally {
       setProcessingScan(false);

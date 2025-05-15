@@ -2338,6 +2338,10 @@ router.post('/process-openai', async (req: Request, res: Response) => {
     
     console.log('Sending OpenAI Vision API request...');
     
+    // Set a longer timeout for the fetch request (120 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    
     try {
       const response = await fetch(endpointUrl, {
         method: 'POST',
@@ -2345,8 +2349,12 @@ router.post('/process-openai', async (req: Request, res: Response) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
+      
+      // Clear the timeout
+      clearTimeout(timeoutId);
       
       console.log('OpenAI response status:', response.status);
       
@@ -2359,43 +2367,54 @@ router.post('/process-openai', async (req: Request, res: Response) => {
         });
       }
 
-      // Get the response with proper type definition to fix TypeScript errors
-      interface OpenAIResponse {
-        choices?: Array<{
-          message?: {
-            content?: string;
-          };
-        }>;
-        model?: string;
-        usage?: {
-          prompt_tokens?: number;
-          completion_tokens?: number;
-          total_tokens?: number;
-        };
-      }
+      // Get the raw response text first to verify content
+      const responseText = await response.text();
+      console.log('Raw OpenAI response text length:', responseText.length);
       
-      // Safely parse the JSON response
-      let data: OpenAIResponse;
-      try {
-        data = await response.json() as OpenAIResponse;
-      } catch (jsonError) {
-        console.error('Failed to parse OpenAI response as JSON:', jsonError);
-        return res.status(500).json({
-          message: 'Failed to parse OpenAI response',
-          error: 'Invalid JSON in API response'
+      if (!responseText || responseText.trim() === '') {
+        console.error('Empty response received from OpenAI API');
+        return res.status(500).json({ 
+          message: 'Empty response received from OpenAI API',
+          error: 'The API returned an empty response'
         });
       }
       
+      // Log the first part of the response to help debug
+      console.log('OpenAI response text sample:', responseText.substring(0, Math.min(200, responseText.length)));
+      
+      // Parse the JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse OpenAI response as JSON:', e);
+        // If parsing fails, return the raw text
+        return res.json({ 
+          success: true,
+          content: responseText,
+          model: 'unknown',
+          format: 'raw_text'
+        });
+      }
+
+      // Access response content
       const content = data.choices?.[0]?.message?.content || '';
       
-      console.log('Received OpenAI response, length:', content.length);
+      console.log('Received OpenAI response content, length:', content.length);
       if (content.length > 100) {
-        console.log('First 100 chars:', content.substring(0, 100));
+        console.log('Content first 100 chars:', content.substring(0, 100));
       } else if (content.length === 0) {
         console.warn('OpenAI returned empty content');
+        return res.json({
+          success: true,
+          content: '',
+          model: data.model || 'unknown',
+          error: 'API returned empty content but valid JSON',
+          usage: data.usage || {}
+        });
       }
       
-      // Return the content with proper JSON formatting
+      // Return the content
       return res.json({ 
         success: true,
         content: content,
@@ -2403,6 +2422,18 @@ router.post('/process-openai', async (req: Request, res: Response) => {
         usage: data.usage || {}
       });
     } catch (fetchError: any) {
+      // Clear the timeout if it's an error
+      clearTimeout(timeoutId);
+      
+      // Handle timeout specifically
+      if (fetchError.name === 'AbortError') {
+        console.error('Request to OpenAI timed out (120s)');
+        return res.status(408).json({
+          message: 'Request to OpenAI timed out after 120 seconds',
+          error: 'timeout'
+        });
+      }
+      
       console.error('Error fetching from OpenAI:', fetchError.message);
       return res.status(500).json({
         message: 'Error communicating with OpenAI API',
@@ -2411,10 +2442,10 @@ router.post('/process-openai', async (req: Request, res: Response) => {
     }
   } catch (error: any) {
     console.error('Error in OpenAI Vision API:', error);
-    // Ensure we return a valid JSON response even for unexpected errors
     return res.status(500).json({
       message: 'Error processing with OpenAI',
-      error: error.message || 'Unknown error'
+      error: error.message || 'Unknown error',
+      stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
     });
   }
 });
