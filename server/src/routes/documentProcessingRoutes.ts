@@ -1075,4 +1075,349 @@ function parseTextContent(content: string) {
   return result;
 }
 
+/**
+ * Extract and map patient information using two-step approach
+ * POST /api/document-processing/two-step
+ */
+router.post('/two-step', async (req: Request, res: Response) => {
+  try {
+    console.log('Two-step extraction request received');
+    
+    const { imageData } = req.body;
+    
+    if (!imageData) {
+      console.error('No image data provided in request body');
+      return res.status(400).json({ message: 'No image data provided' });
+    }
+    
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      console.error('API key not found in environment variables');
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // STEP 1: Raw extraction
+    console.log('Step 1: Performing raw extraction...');
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    const rawExtractionBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "I want you to pull the relevant patient info from this pic"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageData
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+    
+    const rawResponse = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(rawExtractionBody)
+    });
+    
+    if (!rawResponse.ok) {
+      const errorText = await rawResponse.text();
+      console.error('API error in raw extraction step:', errorText);
+      return res.status(rawResponse.status).json({ 
+        message: 'Error in raw extraction step',
+        error: errorText
+      });
+    }
+    
+    const rawData = await rawResponse.json() as GrokApiResponse;
+    const rawContent = rawData.choices[0]?.message?.content || '';
+    console.log('Raw extraction completed');
+    
+    // STEP 2: Map the raw text to our structured fields
+    console.log('Step 2: Mapping raw data to structured fields...');
+    
+    const mappedData = mapRawDataToFields(rawContent);
+    
+    return res.json({
+      success: true,
+      data: mappedData,
+      rawContent: rawContent
+    });
+    
+  } catch (error: any) {
+    console.error('Error in two-step extraction:', error);
+    return res.status(500).json({
+      message: 'Error in two-step extraction',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Map raw text data to structured fields
+ */
+function mapRawDataToFields(rawText: string) {
+  // Create a default empty structure
+  const result: any = {
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: '',
+    phone: '',
+    email: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: ''
+    },
+    insuranceId: '',
+    insuranceProvider: ''
+  };
+  
+  // Helper function to extract a value based on label
+  function extractValue(text: string, label: string): string {
+    const regex = new RegExp(`${label}:?\\s*([^\\n]+)`, 'i');
+    const match = text.match(regex);
+    return match ? match[1].trim() : '';
+  }
+  
+  // Extract patient name and split into first/last name
+  const fullName = extractValue(rawText, 'Patient Name') || 
+                  extractValue(rawText, 'Name');
+  
+  if (fullName) {
+    const nameParts = fullName.split(' ');
+    if (nameParts.length >= 2) {
+      result.firstName = nameParts[0];
+      result.lastName = nameParts[nameParts.length - 1];
+    }
+  }
+  
+  // Extract date of birth and convert to YYYY-MM-DD
+  const dob = extractValue(rawText, 'Date of Birth') || 
+             extractValue(rawText, 'DOB');
+  
+  if (dob) {
+    // Try to parse various date formats
+    const dateParts = dob.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (dateParts) {
+      let month = dateParts[1].padStart(2, '0');
+      let day = dateParts[2].padStart(2, '0');
+      let year = dateParts[3];
+      
+      // Handle 2-digit years
+      if (year.length === 2) {
+        const twoDigitYear = parseInt(year);
+        year = twoDigitYear > 50 ? `19${year}` : `20${year}`;
+      }
+      
+      // Format in YYYY-MM-DD
+      result.dateOfBirth = `${year}-${month}-${day}`;
+    }
+  }
+  
+  // Extract gender
+  result.gender = extractValue(rawText, 'Gender');
+  
+  // Extract phone
+  result.phone = extractValue(rawText, 'Phone Number') ||
+                extractValue(rawText, 'Phone');
+  
+  // Extract email
+  result.email = extractValue(rawText, 'Email');
+  
+  // Extract address and parse components
+  const fullAddress = extractValue(rawText, 'Address');
+  if (fullAddress) {
+    // Try to parse address with format: street, city, state zipCode
+    const addressMatch = fullAddress.match(/(.+),\s*([^,]+),\s*([A-Z]{2})\s*(\d{5})/);
+    if (addressMatch) {
+      result.address.street = addressMatch[1].trim();
+      result.address.city = addressMatch[2].trim();
+      result.address.state = addressMatch[3].trim();
+      result.address.zipCode = addressMatch[4].trim();
+    } else {
+      // If can't parse, just store the whole address as street
+      result.address.street = fullAddress;
+    }
+  }
+  
+  // Extract insurance info
+  result.insuranceProvider = extractValue(rawText, 'Insurance Provider') ||
+                           extractValue(rawText, 'Provider');
+                           
+  result.insuranceId = extractValue(rawText, 'Policy Number') ||
+                     extractValue(rawText, 'Insurance ID') ||
+                     extractValue(rawText, 'Member ID');
+  
+  return result;
+}
+
+/**
+ * HTML test page for two-step document processing
+ * GET /api/document-processing/two-step-test
+ */
+router.get('/two-step-test', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Two-Step Patient Info Extraction</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .results-container { display: flex; flex-wrap: wrap; gap: 20px; }
+    .result { margin-top: 20px; flex: 1; min-width: 300px; }
+    .raw-result { white-space: pre-wrap; word-break: break-all; background: #f5f5f5; padding: 15px; border-radius: 5px; }
+    .structured-result { background: #e6f7ff; padding: 15px; border-radius: 5px; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Two-Step Patient Info Extraction</h1>
+  
+  <p>This page uses a two-step approach: 1) Extract raw patient info, 2) Map it to structured fields</p>
+  
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Process Image</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="results-container">
+      <div class="result">
+        <h3>Structured Data:</h3>
+        <div id="structuredResult" class="structured-result">No results yet</div>
+      </div>
+      
+      <div class="result">
+        <h3>Raw Extracted Information:</h3>
+        <div id="rawResult" class="raw-result">No results yet</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const structuredResult = document.getElementById('structuredResult');
+    const rawResult = document.getElementById('rawResult');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        structuredResult.textContent = 'Sending request...';
+        rawResult.textContent = 'Waiting for response...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/two-step', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          structuredResult.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Format the structured data
+          structuredResult.innerHTML = formatStructuredData(data.data);
+          rawResult.textContent = data.rawContent;
+        } else {
+          structuredResult.textContent = JSON.stringify(data, null, 2);
+          rawResult.textContent = 'No raw data available';
+        }
+      } catch (error) {
+        loading.style.display = 'none';
+        structuredResult.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+    
+    function formatStructuredData(data) {
+      let html = '';
+      
+      // Personal info
+      html += '<h4>Personal Information</h4>';
+      html += \`<p><strong>Name:</strong> \${data.firstName} \${data.lastName}</p>\`;
+      html += \`<p><strong>Date of Birth:</strong> \${data.dateOfBirth}</p>\`;
+      html += \`<p><strong>Gender:</strong> \${data.gender}</p>\`;
+      html += \`<p><strong>Phone:</strong> \${data.phone}</p>\`;
+      html += \`<p><strong>Email:</strong> \${data.email}</p>\`;
+      
+      // Address
+      html += '<h4>Address</h4>';
+      html += \`<p><strong>Street:</strong> \${data.address.street}</p>\`;
+      html += \`<p><strong>City:</strong> \${data.address.city}</p>\`;
+      html += \`<p><strong>State:</strong> \${data.address.state}</p>\`;
+      html += \`<p><strong>Zip Code:</strong> \${data.address.zipCode}</p>\`;
+      
+      // Insurance
+      html += '<h4>Insurance</h4>';
+      html += \`<p><strong>Provider:</strong> \${data.insuranceProvider}</p>\`;
+      html += \`<p><strong>ID:</strong> \${data.insuranceId}</p>\`;
+      
+      return html;
+    }
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
 export default router; 
