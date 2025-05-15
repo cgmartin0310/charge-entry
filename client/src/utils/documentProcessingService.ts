@@ -166,12 +166,12 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
         
         throw new Error('Invalid response format: missing content');
       }
-    } catch (fetchError) {
+    } catch (fetchError: unknown) {
       // Clear the timeout if there's an error
       clearTimeout(timeoutId);
       
       // Check for timeout error
-      if (fetchError.name === 'AbortError') {
+      if (fetchError && typeof fetchError === 'object' && 'name' in fetchError && fetchError.name === 'AbortError') {
         throw new Error('The request to OpenAI timed out after 90 seconds. Please try again with a smaller image or later.');
       }
       
