@@ -64,7 +64,7 @@ router.post('/analyze', async (req: Request, res: Response) => {
     
     console.log('Using Grok API key (first 5 chars):', apiKey.substring(0, 5));
     
-    // Call Grok API with fixed request format
+    // Call Grok API with simpler request format
     const endpointUrl = 'https://api.x.ai/v1/chat/completions';
     
     const requestBody = {
@@ -72,14 +72,14 @@ router.post('/analyze', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "IMPORTANT: You are strictly an information extractor. Your ONLY task is to read information directly visible in the image. DO NOT HALLUCINATE, DO NOT MAKE UP, DO NOT GENERATE ANY DATA. If something is not EXPLICITLY visible in the image, leave that field COMPLETELY EMPTY. Being accurate is critical - it's better to leave a field empty than to make anything up. False information could cause serious harm. ONLY extract what you can actually see in the image. Remember: empty fields are expected and acceptable."
+          content: "You are an expert at extracting patient information from healthcare documents."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "I need you to extract ONLY information that is EXPLICITLY visible in this document image. This is for a medical/healthcare application where accuracy is critical.\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n- DO NOT make up, generate, or hallucinate ANY information\n- If you cannot clearly see information for a field, the field MUST be empty (\"\")\n- DO NOT use placeholders or sample data\n- DO NOT guess or infer information that isn't explicitly visible\n- EMPTY values are EXPECTED and ACCEPTABLE\n\nReturn a JSON object with these fields, and ONLY include values you can directly read from the image:\n- firstName: \"\" (EMPTY if not clearly visible)\n- lastName: \"\" (EMPTY if not clearly visible)\n- dateOfBirth: \"\" (EMPTY if not clearly visible, otherwise in YYYY-MM-DD format)\n- gender: \"\" (EMPTY if not clearly visible)\n- phone: \"\" (EMPTY if not clearly visible)\n- email: \"\" (EMPTY if not clearly visible)\n- address: { street: \"\", city: \"\", state: \"\", zipCode: \"\" } (each EMPTY if not clearly visible)\n- insuranceId: \"\" (EMPTY if not clearly visible)\n- insuranceProvider: \"\" (EMPTY if not clearly visible)\n\nI need to emphasize again: ACCURACY is critical, leaving fields EMPTY is EXPECTED and ACCEPTABLE. Providing false information could result in healthcare billing errors."
+              text: "Extract all relevant patient information from this image and format it as a JSON object with these fields: firstName, lastName, dateOfBirth, gender, phone, email, address (with street, city, state, zipCode as sub-fields), insuranceId, insuranceProvider. Include any other relevant medical information you can see."
             },
             {
               type: "image_url",
@@ -90,7 +90,7 @@ router.post('/analyze', async (req: Request, res: Response) => {
           ]
         }
       ],
-      temperature: 0,
+      temperature: 0.1,
       max_tokens: 1500
     };
 
@@ -681,7 +681,7 @@ router.get('/test-patient', async (req: Request, res: Response) => {
     
     console.log('Testing with Test_Patient.jpg - base64 prefix:', base64Data.substring(0, 50));
     
-    // Call Grok API with fixed request format
+    // Call Grok API with simpler request format (similar to web interface)
     const endpointUrl = 'https://api.x.ai/v1/chat/completions';
     
     const requestBody = {
@@ -689,14 +689,14 @@ router.get('/test-patient', async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: "IMPORTANT: You are strictly an information extractor. Your ONLY task is to read information directly visible in the image. DO NOT HALLUCINATE, DO NOT MAKE UP, DO NOT GENERATE ANY DATA. If something is not EXPLICITLY visible in the image, leave that field COMPLETELY EMPTY. Being accurate is critical - it's better to leave a field empty than to make anything up. False information could cause serious harm. ONLY extract what you can actually see in the image. Remember: empty fields are expected and acceptable."
+          content: "You are an expert at extracting patient information from healthcare documents."
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "I need you to extract ONLY information that is EXPLICITLY visible in this document image. This is for a medical/healthcare application where accuracy is critical.\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n- DO NOT make up, generate, or hallucinate ANY information\n- If you cannot clearly see information for a field, the field MUST be empty (\"\")\n- DO NOT use placeholders or sample data\n- DO NOT guess or infer information that isn't explicitly visible\n- EMPTY values are EXPECTED and ACCEPTABLE\n\nReturn a JSON object with these fields, and ONLY include values you can directly read from the image:\n- firstName: \"\" (EMPTY if not clearly visible)\n- lastName: \"\" (EMPTY if not clearly visible)\n- dateOfBirth: \"\" (EMPTY if not clearly visible, otherwise in YYYY-MM-DD format)\n- gender: \"\" (EMPTY if not clearly visible)\n- phone: \"\" (EMPTY if not clearly visible)\n- email: \"\" (EMPTY if not clearly visible)\n- address: { street: \"\", city: \"\", state: \"\", zipCode: \"\" } (each EMPTY if not clearly visible)\n- insuranceId: \"\" (EMPTY if not clearly visible)\n- insuranceProvider: \"\" (EMPTY if not clearly visible)\n\nI need to emphasize again: ACCURACY is critical, leaving fields EMPTY is EXPECTED and ACCEPTABLE. Providing false information could result in healthcare billing errors."
+              text: "Extract all relevant patient information from this image and format it as a JSON object with these fields: firstName, lastName, dateOfBirth, gender, phone, email, address (with street, city, state, zipCode as sub-fields), insuranceId, insuranceProvider. Include any other relevant medical information you can see."
             },
             {
               type: "image_url",
@@ -707,11 +707,11 @@ router.get('/test-patient', async (req: Request, res: Response) => {
           ]
         }
       ],
-      temperature: 0,
+      temperature: 0.1,
       max_tokens: 1500
     };
 
-    console.log('Request details for Test_Patient.jpg - request format:', JSON.stringify(requestBody.messages[1].content));
+    console.log('Using simpler prompt for Test_Patient.jpg');
     
     try {
       console.log('Starting fetch request to Grok API with Test_Patient.jpg...');
@@ -799,6 +799,235 @@ router.get('/test-patient', async (req: Request, res: Response) => {
       error: error.message
     });
   }
+});
+
+/**
+ * Extract raw patient information without specific formatting
+ * GET /api/document-processing/raw-extract
+ */
+router.post('/raw-extract', async (req: Request, res: Response) => {
+  try {
+    console.log('Raw extract request received', {
+      timestamp: new Date().toISOString(),
+      contentType: req.headers['content-type'],
+      bodyLength: req.body ? JSON.stringify(req.body).length : 0,
+      hasImageData: !!req.body?.imageData
+    });
+    
+    const { imageData } = req.body;
+    
+    if (!imageData) {
+      console.error('No image data provided in request body');
+      return res.status(400).json({ message: 'No image data provided' });
+    }
+    
+    console.log('Image data received, length:', imageData.length);
+    
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      console.error('API key not found in environment variables');
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    console.log('Using Grok API key (first 5 chars):', apiKey.substring(0, 5));
+    
+    // Call Grok API with very simple prompt - just like the web interface
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    const requestBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "I want you to pull the relevant patient info from this pic"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageData
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+    
+    console.log('Using simple raw extraction prompt');
+    
+    try {
+      console.log('Starting fetch request to Grok API for raw extraction...');
+      
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('Raw extraction response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response text for raw extraction:', errorText);
+        return res.status(response.status).json({ 
+          message: 'Error from Grok API on raw extraction',
+          error: errorText
+        });
+      }
+
+      const data = await response.json() as GrokApiResponse;
+      console.log('Raw extraction API response received successfully');
+      
+      // Just return the raw content from the API
+      if (data.choices && data.choices[0]?.message?.content) {
+        const content = data.choices[0].message.content;
+        console.log('Raw content from Grok API (first 100 chars):', content.substring(0, 100));
+        
+        return res.json({ 
+          success: true,
+          rawContent: content,
+          rawResponse: data
+        });
+      } else {
+        return res.status(500).json({ 
+          message: 'Invalid response format from Grok API',
+          response: data
+        });
+      }
+    } catch (error: any) {
+      console.error('Error in raw extraction:', error);
+      return res.status(500).json({
+        message: 'Error processing image',
+        error: error.message
+      });
+    }
+  } catch (error: any) {
+    console.error('Server error in raw extraction:', error);
+    return res.status(500).json({ 
+      message: 'Server error processing image',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * HTML test page for raw document info extraction 
+ * GET /api/document-processing/raw-test
+ */
+router.get('/raw-test', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raw Patient Info Extraction</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Raw Patient Info Extraction</h1>
+  
+  <p>This page uses the exact same prompt that worked in the Grok web interface: "I want you to pull the relevant patient info from this pic"</p>
+  
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Extract Raw Info</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="result">
+      <h3>Extracted Raw Information:</h3>
+      <pre id="result">No results yet</pre>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const resultArea = document.getElementById('result');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        resultArea.textContent = 'Sending request...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/raw-extract', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          resultArea.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.rawContent) {
+          resultArea.textContent = data.rawContent;
+        } else {
+          resultArea.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (error) {
+        loading.style.display = 'none';
+        resultArea.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
 });
 
 /**
