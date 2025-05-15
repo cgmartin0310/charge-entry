@@ -2293,16 +2293,21 @@ router.get('/openai-test', (req: Request, res: Response) => {
  */
 router.post('/process-openai', async (req: Request, res: Response) => {
   try {
+    console.log('OpenAI Vision API request received');
     const { imageData } = req.body;
     
     if (!imageData) {
+      console.error('No image data provided in request body');
       return res.status(400).json({ message: 'No image data provided' });
     }
+    
+    console.log('Image data received, length:', imageData.length);
     
     // Get API key from environment variable
     const apiKey = process.env.OPENAI_API_KEY;
     
     if (!apiKey) {
+      console.error('OpenAI API key not found in environment variables');
       return res.status(500).json({ message: 'OpenAI API key not configured (OPENAI_API_KEY environment variable)' });
     }
     
@@ -2333,54 +2338,65 @@ router.post('/process-openai', async (req: Request, res: Response) => {
     
     console.log('Sending OpenAI Vision API request...');
     
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({ 
-        message: 'Error from OpenAI API',
-        error: errorText
+    try {
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('OpenAI response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error from OpenAI API:', errorText);
+        return res.status(response.status).json({ 
+          message: 'Error from OpenAI API',
+          error: errorText
+        });
+      }
+
+      // Get the response with proper type definition to fix TypeScript errors
+      interface OpenAIResponse {
+        choices?: Array<{
+          message?: {
+            content?: string;
+          };
+        }>;
+        model?: string;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        };
+      }
+      
+      const data = await response.json() as OpenAIResponse;
+      
+      const content = data.choices?.[0]?.message?.content || '';
+      
+      console.log('Received OpenAI response, length:', content.length);
+      if (content.length > 100) {
+        console.log('First 100 chars:', content.substring(0, 100));
+      }
+      
+      // Return the content
+      return res.json({ 
+        success: true,
+        content: content,
+        model: data.model || 'unknown',
+        usage: data.usage || {}
+      });
+    } catch (fetchError: any) {
+      console.error('Error fetching from OpenAI:', fetchError.message);
+      return res.status(500).json({
+        message: 'Error communicating with OpenAI API',
+        error: fetchError.message
       });
     }
-
-    // Get the response with proper type definition to fix TypeScript errors
-    interface OpenAIResponse {
-      choices?: Array<{
-        message?: {
-          content?: string;
-        };
-      }>;
-      model?: string;
-      usage?: {
-        prompt_tokens?: number;
-        completion_tokens?: number;
-        total_tokens?: number;
-      };
-    }
-    
-    const data = await response.json() as OpenAIResponse;
-    
-    const content = data.choices?.[0]?.message?.content || '';
-    
-    console.log('Received OpenAI response, length:', content.length);
-    if (content.length > 100) {
-      console.log('First 100 chars:', content.substring(0, 100));
-    }
-    
-    // Return the content
-    return res.json({ 
-      success: true,
-      content: content,
-      model: data.model || 'unknown',
-      usage: data.usage || {}
-    });
   } catch (error: any) {
     console.error('Error in OpenAI Vision API:', error);
     return res.status(500).json({

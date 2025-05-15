@@ -60,139 +60,38 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
       throw new Error('Invalid image format. Expected a base64 data URL');
     }
 
-    // Get the base URL for the API (handle different environments)
-    const baseApiUrl = process.env.NODE_ENV === 'production' 
-      ? '' // Empty for same-origin in production
-      : 'http://localhost:5002'; // For local development
+    // This is the simplified approach that matches the test endpoint exactly
+    console.log('Sending request to OpenAI API endpoint (simplified approach)');
     
-    // Build the full endpoint URL for OpenAI processing
-    const endpointUrl = `${baseApiUrl}/api/document-processing/process-openai`;
+    // Directly use the endpoint path as it appears in the test page
+    const response = await fetch('/api/document-processing/process-openai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ imageData })
+    });
     
-    console.debug('Sending request to OpenAI document processing API at:', endpointUrl);
+    console.log('Response status:', response.status);
     
-    // Implement retry logic
-    const maxRetries = 2;
-    let retryCount = 0;
-    let lastError: Error | null = null;
-    
-    while (retryCount <= maxRetries) {
-      try {
-        if (retryCount > 0) {
-          console.debug(`OpenAI retry attempt ${retryCount} of ${maxRetries}...`);
-          // Add a short delay before retrying
-          await new Promise(resolve => setTimeout(resolve, 1500 * retryCount));
-        }
-        
-        console.debug('Setting up fetch request to OpenAI endpoint');
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-        
-        console.debug('Preparing to send request to:', endpointUrl);
-        
-        try {
-          const response = await fetch(endpointUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ imageData }),
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId); // Clear the timeout if response arrives
-          
-          console.debug('OpenAI response status:', response.status);
-          console.debug('OpenAI response status text:', response.statusText);
-          
-          if (!response.ok) {
-            let errorMessage = `Error: ${response.status} - ${response.statusText}`;
-            try {
-              const errorText = await response.text();
-              console.error('OpenAI API error response text:', errorText);
-              
-              if (errorText) {
-                try {
-                  const errorData = JSON.parse(errorText);
-                  console.error('OpenAI API error details:', JSON.stringify(errorData));
-                  errorMessage = errorData.message || errorMessage;
-                } catch (parseError) {
-                  // If we can't parse the error as JSON, use the raw text
-                  console.error('Could not parse error response as JSON:', parseError);
-                  errorMessage = errorText || errorMessage;
-                }
-              }
-            } catch (textError) {
-              console.error('Error getting response text:', textError);
-            }
-            
-            throw new Error(errorMessage);
-          }
-          
-          console.debug('Received OK response from OpenAI endpoint');
-          
-          // First check if there's any response text before trying to parse JSON
-          const responseText = await response.text();
-          if (!responseText || responseText.trim() === '') {
-            throw new Error('Empty response received from OpenAI API');
-          }
-          
-          console.debug('Response text length:', responseText.length);
-          console.debug('Response text sample:', responseText.substring(0, 100) + '...');
-          
-          // Now try to parse the JSON
-          const data = JSON.parse(responseText);
-          console.debug('Response data structure:', Object.keys(data));
-          
-          // For OpenAI, we need to extract and map the data ourselves
-          if (data.success && data.content) {
-            console.debug('Data has success and content properties');
-            // Map the raw OpenAI response to our structured format
-            const extractedData = mapOpenAIResponseToPatientData(data.content);
-            console.debug('Successfully mapped OpenAI response to patient data:', extractedData);
-            return extractedData;
-          } else {
-            console.error('Unexpected response format from OpenAI:', data);
-            throw new Error('Invalid response format from OpenAI server');
-          }
-        } catch (fetchError: any) {
-          if (fetchError.name === 'AbortError') {
-            throw new Error('Request timed out after 60 seconds');
-          }
-          
-          if (fetchError.message?.includes('JSON')) {
-            console.error('JSON parse error from response:', fetchError);
-            throw new Error('Invalid JSON response from server. The server may be experiencing issues.');
-          }
-          
-          throw fetchError;
-        }
-      } catch (attemptError: any) {
-        console.error(`OpenAI attempt ${retryCount + 1} failed:`, attemptError.message);
-        lastError = attemptError;
-        retryCount++;
-        
-        // Don't retry if it's a specific error that won't be fixed by retrying
-        if (attemptError.message && (
-            attemptError.message.includes('No image data provided') || 
-            attemptError.message.includes('Invalid image format') ||
-            attemptError.message.includes('API key not configured')
-          )) {
-          throw attemptError;
-        }
-        
-        // If we've hit max retries, throw the last error
-        if (retryCount > maxRetries) {
-          console.error('All OpenAI retry attempts failed');
-          throw lastError;
-        }
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error response from OpenAI API:', errorText);
+      throw new Error(`Error from OpenAI API: ${response.status} ${response.statusText}`);
     }
     
-    // This should never be reached due to the throw in the loop
-    throw new Error('Unknown error occurred with OpenAI processing');
-  } catch (error: any) {
-    console.error('Error extracting patient data with OpenAI:', error.message);
-    console.error('Error stack:', error.stack);
+    const data = await response.json();
+    console.log('Received data from OpenAI API:', data);
+    
+    if (data && data.content) {
+      console.log('Successfully received content from OpenAI API');
+      return mapOpenAIResponseToPatientData(data.content);
+    } else {
+      console.error('Unexpected response format from OpenAI API:', data);
+      throw new Error('Invalid response format from OpenAI API');
+    }
+  } catch (error) {
+    console.error('Error extracting patient data with OpenAI:', error);
     throw error;
   }
 };
