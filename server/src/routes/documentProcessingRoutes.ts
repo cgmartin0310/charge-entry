@@ -1168,6 +1168,509 @@ router.post('/two-step', async (req: Request, res: Response) => {
 });
 
 /**
+ * HTML test page for two-step document processing
+ * GET /api/document-processing/two-step-test
+ */
+router.get('/two-step-test', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Two-Step Patient Info Extraction</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .results-container { display: flex; flex-wrap: wrap; gap: 20px; }
+    .result { margin-top: 20px; flex: 1; min-width: 300px; }
+    .raw-result { white-space: pre-wrap; word-break: break-all; background: #f5f5f5; padding: 15px; border-radius: 5px; }
+    .structured-result { background: #e6f7ff; padding: 15px; border-radius: 5px; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Two-Step Patient Info Extraction</h1>
+  
+  <p>This page uses a two-step approach: 1) Extract raw patient info, 2) Map it to structured fields</p>
+  
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Process Image</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="results-container">
+      <div class="result">
+        <h3>Structured Data:</h3>
+        <div id="structuredResult" class="structured-result">No results yet</div>
+      </div>
+      
+      <div class="result">
+        <h3>Raw Extracted Information:</h3>
+        <div id="rawResult" class="raw-result">No results yet</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const structuredResult = document.getElementById('structuredResult');
+    const rawResult = document.getElementById('rawResult');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        structuredResult.textContent = 'Sending request...';
+        rawResult.textContent = 'Waiting for response...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/two-step', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          structuredResult.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Format the structured data
+          structuredResult.innerHTML = formatStructuredData(data.data);
+          rawResult.textContent = data.rawContent;
+        } else {
+          structuredResult.textContent = JSON.stringify(data, null, 2);
+          rawResult.textContent = 'No raw data available';
+        }
+      } catch (error) {
+        loading.style.display = 'none';
+        structuredResult.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+    
+    function formatStructuredData(data) {
+      let html = '';
+      
+      // Personal info
+      html += '<h4>Personal Information</h4>';
+      html += \`<p><strong>Name:</strong> \${data.firstName} \${data.lastName}</p>\`;
+      html += \`<p><strong>Date of Birth:</strong> \${data.dateOfBirth}</p>\`;
+      html += \`<p><strong>Gender:</strong> \${data.gender}</p>\`;
+      html += \`<p><strong>Phone:</strong> \${data.phone}</p>\`;
+      html += \`<p><strong>Email:</strong> \${data.email}</p>\`;
+      
+      // Address
+      html += '<h4>Address</h4>';
+      html += \`<p><strong>Street:</strong> \${data.address.street}</p>\`;
+      html += \`<p><strong>City:</strong> \${data.address.city}</p>\`;
+      html += \`<p><strong>State:</strong> \${data.address.state}</p>\`;
+      html += \`<p><strong>Zip Code:</strong> \${data.address.zipCode}</p>\`;
+      
+      // Insurance
+      html += '<h4>Insurance</h4>';
+      html += \`<p><strong>Provider:</strong> \${data.insuranceProvider}</p>\`;
+      html += \`<p><strong>ID:</strong> \${data.insuranceId}</p>\`;
+      
+      return html;
+    }
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+/**
+ * Test endpoint to verify model isn't using mock responses
+ * GET /api/document-processing/random-test
+ */
+router.get('/random-test', (req: Request, res: Response) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Prompt Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
+    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
+    .result { margin-top: 20px; white-space: pre-wrap; word-break: break-all; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .loading { display: none; margin-top: 10px; }
+    .note { background-color: #f8d7da; padding: 15px; margin: 15px 0; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Random Prompt Test</h1>
+  
+  <div class="note">
+    <p>This test uses an extremely unusual prompt that would never trigger canned/mock responses.</p>
+    <p>If the API returns information specific to the image, then it's definitely not using mock data.</p>
+  </div>
+  
+  <div class="container">
+    <h2>Upload Image</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="preview"></div>
+    <button id="processBtn" disabled>Process with Random Prompt</button>
+    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
+    
+    <div class="result">
+      <h3>Random Prompt Test Results:</h3>
+      <pre id="result">No results yet</pre>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const resultArea = document.getElementById('result');
+    const loading = document.getElementById('loading');
+    let imageData = null;
+
+    imageInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        preview.innerHTML = '';
+        processBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imageData = e.target.result;
+        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    processBtn.addEventListener('click', async function() {
+      if (!imageData) return;
+      
+      try {
+        resultArea.textContent = 'Sending request...';
+        loading.style.display = 'block';
+        processBtn.disabled = true;
+        
+        const response = await fetch('/api/document-processing/random-prompt-test', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageData })
+        });
+        
+        loading.style.display = 'none';
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          resultArea.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.rawContent) {
+          resultArea.textContent = data.rawContent;
+        } else {
+          resultArea.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (error) {
+        loading.style.display = 'none';
+        resultArea.textContent = \`Error: \${error.message}\`;
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+  `;
+  
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+/**
+ * Process image with a random/bizarre prompt
+ * POST /api/document-processing/random-prompt-test
+ */
+router.post('/random-prompt-test', async (req: Request, res: Response) => {
+  try {
+    const { imageData } = req.body;
+    
+    if (!imageData) {
+      return res.status(400).json({ message: 'No image data provided' });
+    }
+    
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // Using an extremely unusual/random prompt that would never match any canned response templates
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    // Generate a random string to make the prompt unique
+    const randomString = Math.random().toString(36).substring(2, 15);
+    
+    const requestBody = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `ZWPX_TEST_${randomString}: Imagine you're a purple elephant detective from Mars investigating a document case. Describe what's in this image as if you're filing a bizarre alien report, but be extremely specific about any addresses, phone numbers, names, and dates you can see. This is test prompt ID: ${randomString}.`
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageData
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.7, // Higher temperature for more creative response
+      max_tokens: 1500
+    };
+    
+    const response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ 
+        message: 'Error from Grok API on random prompt test',
+        error: errorText
+      });
+    }
+
+    const data = await response.json() as GrokApiResponse;
+    
+    return res.json({ 
+      success: true,
+      rawContent: data.choices[0]?.message?.content || 'No content returned',
+      testPrompt: requestBody.messages[0].content[0].text,
+      rawResponse: data
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: 'Error processing with random prompt',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Process Test_Patient.jpg with the direct web prompt
+ * GET /api/document-processing/web-match-test
+ */
+router.get('/web-match-test', async (req: Request, res: Response) => {
+  try {
+    // Get API key from environment variable
+    const apiKey = process.env.GROK_API_KEY || process.env.REACT_APP_GROK_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(500).json({ message: 'API key not configured on server' });
+    }
+    
+    // Import fs to read the file
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Path to the test image (relative to project root)
+    const imagePath = path.join(process.cwd(), 'Test_Patient.jpg');
+    
+    console.log('Reading Test_Patient.jpg for web match test from:', imagePath);
+    
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ 
+        message: 'Test_Patient.jpg not found',
+        searchPath: imagePath
+      });
+    }
+    
+    // Read the file and convert to base64
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64Data = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+    
+    // Log the first part of the base64 data to verify format
+    console.log('Base64 data (first 50 chars):', base64Data.substring(0, 50));
+    
+    // Using the exact same prompt as the web interface
+    const endpointUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    // 8 different tests with variations on the request format:
+    
+    // 1. Direct basic prompt (identical to web interface)
+    const directBasicPrompt = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "I want you to pull the relevant patient info from this pic"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: base64Data
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+    
+    // 2. Add system message
+    const systemMessagePrompt = {
+      model: "grok-2-vision",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at extracting information from images."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "I want you to pull the relevant patient info from this pic"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: base64Data
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500
+    };
+    
+    // Run tests and collect results
+    const results = {};
+    
+    console.log('Starting direct basic prompt test...');
+    try {
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(directBasicPrompt)
+      });
+      
+      if (response.ok) {
+        const data = await response.json() as GrokApiResponse;
+        results['directBasicPrompt'] = data.choices[0]?.message?.content || 'No content';
+      } else {
+        const errorText = await response.text();
+        results['directBasicPrompt'] = `Error: ${response.status} - ${errorText}`;
+      }
+    } catch (error: any) {
+      results['directBasicPrompt'] = `Exception: ${error.message}`;
+    }
+    
+    console.log('Starting system message prompt test...');
+    try {
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(systemMessagePrompt)
+      });
+      
+      if (response.ok) {
+        const data = await response.json() as GrokApiResponse;
+        results['systemMessagePrompt'] = data.choices[0]?.message?.content || 'No content';
+      } else {
+        const errorText = await response.text();
+        results['systemMessagePrompt'] = `Error: ${response.status} - ${errorText}`;
+      }
+    } catch (error: any) {
+      results['systemMessagePrompt'] = `Exception: ${error.message}`;
+    }
+    
+    return res.json({
+      success: true,
+      results: results,
+      imageSize: base64Data.length,
+      testInfo: "This test runs multiple variations of the API request to compare with the web interface"
+    });
+  } catch (error: any) {
+    console.error('Error in web match test:', error);
+    return res.status(500).json({
+      message: 'Error in web match test',
+      error: error.message
+    });
+  }
+});
+
+/**
  * Map raw text data to structured fields
  */
 function mapRawDataToFields(rawText: string) {
@@ -1361,157 +1864,5 @@ function mapRawDataToFields(rawText: string) {
   
   return result;
 }
-
-/**
- * HTML test page for two-step document processing
- * GET /api/document-processing/two-step-test
- */
-router.get('/two-step-test', (req: Request, res: Response) => {
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Two-Step Patient Info Extraction</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
-    .container { border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-top: 20px; }
-    .image-preview { max-width: 100%; max-height: 300px; margin-top: 10px; }
-    .results-container { display: flex; flex-wrap: wrap; gap: 20px; }
-    .result { margin-top: 20px; flex: 1; min-width: 300px; }
-    .raw-result { white-space: pre-wrap; word-break: break-all; background: #f5f5f5; padding: 15px; border-radius: 5px; }
-    .structured-result { background: #e6f7ff; padding: 15px; border-radius: 5px; }
-    button { margin-top: 10px; padding: 8px 16px; }
-    .loading { display: none; margin-top: 10px; }
-  </style>
-</head>
-<body>
-  <h1>Two-Step Patient Info Extraction</h1>
-  
-  <p>This page uses a two-step approach: 1) Extract raw patient info, 2) Map it to structured fields</p>
-  
-  <div class="container">
-    <h2>Upload Image</h2>
-    <input type="file" id="imageInput" accept="image/*">
-    <div id="preview"></div>
-    <button id="processBtn" disabled>Process Image</button>
-    <div id="loading" class="loading">Processing... (this may take up to 30 seconds)</div>
-    
-    <div class="results-container">
-      <div class="result">
-        <h3>Structured Data:</h3>
-        <div id="structuredResult" class="structured-result">No results yet</div>
-      </div>
-      
-      <div class="result">
-        <h3>Raw Extracted Information:</h3>
-        <div id="rawResult" class="raw-result">No results yet</div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const imageInput = document.getElementById('imageInput');
-    const preview = document.getElementById('preview');
-    const processBtn = document.getElementById('processBtn');
-    const structuredResult = document.getElementById('structuredResult');
-    const rawResult = document.getElementById('rawResult');
-    const loading = document.getElementById('loading');
-    let imageData = null;
-
-    imageInput.addEventListener('change', function(event) {
-      const file = event.target.files[0];
-      if (!file) {
-        preview.innerHTML = '';
-        processBtn.disabled = true;
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        imageData = e.target.result;
-        preview.innerHTML = \`<img src="\${imageData}" class="image-preview">\`;
-        processBtn.disabled = false;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    processBtn.addEventListener('click', async function() {
-      if (!imageData) return;
-      
-      try {
-        structuredResult.textContent = 'Sending request...';
-        rawResult.textContent = 'Waiting for response...';
-        loading.style.display = 'block';
-        processBtn.disabled = true;
-        
-        const response = await fetch('/api/document-processing/two-step', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ imageData })
-        });
-        
-        loading.style.display = 'none';
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          structuredResult.textContent = \`Error: \${response.status} \${response.statusText}\\n\${errorText}\`;
-          return;
-        }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          // Format the structured data
-          structuredResult.innerHTML = formatStructuredData(data.data);
-          rawResult.textContent = data.rawContent;
-        } else {
-          structuredResult.textContent = JSON.stringify(data, null, 2);
-          rawResult.textContent = 'No raw data available';
-        }
-      } catch (error) {
-        loading.style.display = 'none';
-        structuredResult.textContent = \`Error: \${error.message}\`;
-      } finally {
-        processBtn.disabled = false;
-      }
-    });
-    
-    function formatStructuredData(data) {
-      let html = '';
-      
-      // Personal info
-      html += '<h4>Personal Information</h4>';
-      html += \`<p><strong>Name:</strong> \${data.firstName} \${data.lastName}</p>\`;
-      html += \`<p><strong>Date of Birth:</strong> \${data.dateOfBirth}</p>\`;
-      html += \`<p><strong>Gender:</strong> \${data.gender}</p>\`;
-      html += \`<p><strong>Phone:</strong> \${data.phone}</p>\`;
-      html += \`<p><strong>Email:</strong> \${data.email}</p>\`;
-      
-      // Address
-      html += '<h4>Address</h4>';
-      html += \`<p><strong>Street:</strong> \${data.address.street}</p>\`;
-      html += \`<p><strong>City:</strong> \${data.address.city}</p>\`;
-      html += \`<p><strong>State:</strong> \${data.address.state}</p>\`;
-      html += \`<p><strong>Zip Code:</strong> \${data.address.zipCode}</p>\`;
-      
-      // Insurance
-      html += '<h4>Insurance</h4>';
-      html += \`<p><strong>Provider:</strong> \${data.insuranceProvider}</p>\`;
-      html += \`<p><strong>ID:</strong> \${data.insuranceId}</p>\`;
-      
-      return html;
-    }
-  </script>
-</body>
-</html>
-  `;
-  
-  res.setHeader('Content-Type', 'text/html');
-  res.send(html);
-});
 
 export default router; 
