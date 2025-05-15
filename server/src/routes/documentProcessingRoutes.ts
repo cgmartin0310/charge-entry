@@ -2350,8 +2350,23 @@ router.post('/process-openai', async (req: Request, res: Response) => {
       });
     }
 
-    // Get the response
-    const data = await response.json();
+    // Get the response with proper type definition to fix TypeScript errors
+    interface OpenAIResponse {
+      choices?: Array<{
+        message?: {
+          content?: string;
+        };
+      }>;
+      model?: string;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      };
+    }
+    
+    const data = await response.json() as OpenAIResponse;
+    
     const content = data.choices?.[0]?.message?.content || '';
     
     console.log('Received OpenAI response, length:', content.length);
@@ -2363,8 +2378,8 @@ router.post('/process-openai', async (req: Request, res: Response) => {
     return res.json({ 
       success: true,
       content: content,
-      model: data.model,
-      usage: data.usage
+      model: data.model || 'unknown',
+      usage: data.usage || {}
     });
   } catch (error: any) {
     console.error('Error in OpenAI Vision API:', error);
@@ -2457,16 +2472,35 @@ router.get('/debug-test', async (req: Request, res: Response) => {
     });
     
     const responseStatus = response.status;
-    const responseHeaders = {};
+    const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
       responseHeaders[key] = value;
     });
     
-    let responseData;
+    // Define proper interface for Grok API response to fix TypeScript errors
+    interface DebugGrokResponse {
+      choices?: Array<{
+        message?: {
+          content?: string;
+        };
+      }>;
+      model?: string;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+        prompt_tokens_details?: {
+          image_tokens?: number;
+        };
+      };
+    }
+    
+    let responseData: any;
     let responseContent = '';
     
     if (response.ok) {
-      const data = await response.json();
+      const data = await response.json() as DebugGrokResponse;
+      
       responseData = data;
       responseContent = data.choices?.[0]?.message?.content || '';
     } else {
