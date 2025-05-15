@@ -844,7 +844,7 @@ router.post('/raw-extract', async (req: Request, res: Response) => {
           content: [
             {
               type: "text",
-              text: "I want you to pull the relevant patient info from this pic"
+              text: "I want you to pull the relevant patient info from this pic. Pay special attention to extracting the EXACT address, phone numbers, and all contact information precisely as shown in the image."
             },
             {
               type: "image_url",
@@ -1110,7 +1110,7 @@ router.post('/two-step', async (req: Request, res: Response) => {
           content: [
             {
               type: "text",
-              text: "I want you to pull the relevant patient info from this pic"
+              text: "I want you to pull the relevant patient info from this pic. Pay special attention to extracting the EXACT address, phone numbers, and all contact information precisely as shown in the image."
             },
             {
               type: "image_url",
@@ -1189,11 +1189,22 @@ function mapRawDataToFields(rawText: string) {
     insuranceProvider: ''
   };
   
+  console.log('Starting to map raw text to fields');
+  
   // Helper function to extract a value based on label
-  function extractValue(text: string, label: string): string {
-    const regex = new RegExp(`${label}:?\\s*([^\\n]+)`, 'i');
+  function extractValue(text: string, label: string, multiline = false): string {
+    let regex;
+    if (multiline) {
+      // For multiline values, match until the next header line (starts with - or **)
+      regex = new RegExp(`${label}:?\\s*([^\\n]+(?:\\n(?!\\s*(?:-|\\*\\*)).+)*)`, 'i');
+    } else {
+      regex = new RegExp(`${label}:?\\s*([^\\n]+)`, 'i');
+    }
+    
     const match = text.match(regex);
-    return match ? match[1].trim() : '';
+    const value = match ? match[1].trim() : '';
+    console.log(`Extracted ${label}: "${value}"`);
+    return value;
   }
   
   // Extract patient name and split into first/last name
@@ -1205,16 +1216,22 @@ function mapRawDataToFields(rawText: string) {
     if (nameParts.length >= 2) {
       result.firstName = nameParts[0];
       result.lastName = nameParts[nameParts.length - 1];
+      // If there are more than 2 parts, the middle could be a middle name or part of last name
+      if (nameParts.length > 2) {
+        // For simplicity, assume the middle is part of first name
+        result.firstName = nameParts.slice(0, -1).join(' ');
+      }
     }
   }
   
-  // Extract date of birth and convert to YYYY-MM-DD
+  // Extract date of birth with multiple patterns
   const dob = extractValue(rawText, 'Date of Birth') || 
-             extractValue(rawText, 'DOB');
+             extractValue(rawText, 'DOB') ||
+             extractValue(rawText, 'Birth Date');
   
   if (dob) {
     // Try to parse various date formats
-    const dateParts = dob.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    let dateParts = dob.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
     if (dateParts) {
       let month = dateParts[1].padStart(2, '0');
       let day = dateParts[2].padStart(2, '0');
@@ -1228,42 +1245,119 @@ function mapRawDataToFields(rawText: string) {
       
       // Format in YYYY-MM-DD
       result.dateOfBirth = `${year}-${month}-${day}`;
+    } else {
+      // Try another format: Month Day, Year
+      dateParts = dob.match(/([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/);
+      if (dateParts) {
+        const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+        const month = (monthNames.indexOf(dateParts[1].toLowerCase()) + 1).toString().padStart(2, '0');
+        const day = dateParts[2].padStart(2, '0');
+        const year = dateParts[3];
+        result.dateOfBirth = `${year}-${month}-${day}`;
+      }
     }
   }
   
   // Extract gender
-  result.gender = extractValue(rawText, 'Gender');
+  result.gender = extractValue(rawText, 'Gender') || 
+                 (rawText.match(/\bmale\b/i) ? 'Male' : '') || 
+                 (rawText.match(/\bfemale\b/i) ? 'Female' : '');
   
-  // Extract phone
-  result.phone = extractValue(rawText, 'Phone Number') ||
-                extractValue(rawText, 'Phone');
+  // Extract phone with multiple patterns
+  // First look for primary patient phone
+  let phonePatterns = [
+    extractValue(rawText, 'Phone Number'),
+    extractValue(rawText, 'Phone'),
+    extractValue(rawText, 'Tel'),
+    extractValue(rawText, 'Telephone'),
+    extractValue(rawText, 'Cell'),
+    extractValue(rawText, 'Mobile')
+  ];
+  
+  // Filter out empty values and use the first one
+  const phones = phonePatterns.filter(p => p);
+  if (phones.length > 0) {
+    // Extract just the digits if possible
+    const phoneDigits = phones[0].match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+    result.phone = phoneDigits ? phoneDigits[0] : phones[0];
+  } else {
+    // Try to find any phone-like pattern in the text not associated with Emergency Contact or Physician
+    const generalPhoneMatch = rawText.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+    if (generalPhoneMatch && !rawText.includes('Emergency Contact') && !rawText.includes('Physician')) {
+      result.phone = generalPhoneMatch[0];
+    }
+  }
   
   // Extract email
-  result.email = extractValue(rawText, 'Email');
+  result.email = extractValue(rawText, 'Email') ||
+                extractValue(rawText, 'E-mail') ||
+                extractValue(rawText, 'Email Address');
   
-  // Extract address and parse components
-  const fullAddress = extractValue(rawText, 'Address');
+  // Enhanced address extraction
+  let fullAddress = extractValue(rawText, 'Address', true);
   if (fullAddress) {
-    // Try to parse address with format: street, city, state zipCode
-    const addressMatch = fullAddress.match(/(.+),\s*([^,]+),\s*([A-Z]{2})\s*(\d{5})/);
+    // Clean up address (remove line breaks and multiple spaces)
+    fullAddress = fullAddress.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Try multiple regex patterns to extract address components
+    
+    // Pattern 1: street, city, state zipCode
+    let addressMatch = fullAddress.match(/(.+),\s*([^,]+),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)/);
     if (addressMatch) {
       result.address.street = addressMatch[1].trim();
       result.address.city = addressMatch[2].trim();
       result.address.state = addressMatch[3].trim();
       result.address.zipCode = addressMatch[4].trim();
     } else {
-      // If can't parse, just store the whole address as street
-      result.address.street = fullAddress;
+      // Pattern 2: Less structured - try to find state and zip
+      const stateZipMatch = fullAddress.match(/([A-Z]{2})\s*(\d{5}(?:-\d{4})?)/);
+      if (stateZipMatch) {
+        result.address.state = stateZipMatch[1];
+        result.address.zipCode = stateZipMatch[2];
+        
+        // Try to extract city
+        const beforeStateZip = fullAddress.substring(0, fullAddress.indexOf(stateZipMatch[0])).trim();
+        const cityMatch = beforeStateZip.match(/,\s*([^,]+)$/);
+        if (cityMatch) {
+          result.address.city = cityMatch[1].trim();
+          result.address.street = beforeStateZip.substring(0, beforeStateZip.lastIndexOf(',')).trim();
+        } else {
+          // If no clear city delimiter, just use everything before state/zip as street
+          result.address.street = beforeStateZip;
+        }
+      } else {
+        // If structured parsing fails, just store the whole address as street
+        result.address.street = fullAddress;
+      }
     }
   }
   
-  // Extract insurance info
+  // If we couldn't parse the address fully, look for city, state, zip separately
+  if (!result.address.city) {
+    result.address.city = extractValue(rawText, 'City');
+  }
+  if (!result.address.state) {
+    result.address.state = extractValue(rawText, 'State');
+  }
+  if (!result.address.zipCode) {
+    result.address.zipCode = extractValue(rawText, 'Zip') || 
+                            extractValue(rawText, 'Zip Code') || 
+                            extractValue(rawText, 'Postal Code');
+  }
+  
+  // Extract insurance info with multiple patterns
   result.insuranceProvider = extractValue(rawText, 'Insurance Provider') ||
-                           extractValue(rawText, 'Provider');
+                           extractValue(rawText, 'Provider') ||
+                           extractValue(rawText, 'Insurance Carrier') ||
+                           extractValue(rawText, 'Insurance');
                            
   result.insuranceId = extractValue(rawText, 'Policy Number') ||
                      extractValue(rawText, 'Insurance ID') ||
-                     extractValue(rawText, 'Member ID');
+                     extractValue(rawText, 'Member ID') ||
+                     extractValue(rawText, 'Policy #') ||
+                     extractValue(rawText, 'ID Number');
+  
+  console.log('Completed mapping, result:', JSON.stringify(result, null, 2));
   
   return result;
 }
