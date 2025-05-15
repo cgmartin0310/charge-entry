@@ -61,7 +61,7 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
     }
 
     // This is the simplified approach that matches the test endpoint exactly
-    console.log('Sending request to OpenAI API endpoint (simplified approach)');
+    console.log('Sending request to OpenAI API endpoint');
     
     // Directly use the endpoint path as it appears in the test page
     const response = await fetch('/api/document-processing/process-openai', {
@@ -72,23 +72,79 @@ export const extractPatientDataWithOpenAI = async (imageData: string): Promise<E
       body: JSON.stringify({ imageData })
     });
     
-    console.log('Response status:', response.status);
+    console.log('Response status:', response.status, response.statusText);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Error response from OpenAI API:', errorText);
-      throw new Error(`Error from OpenAI API: ${response.status} ${response.statusText}`);
+      let errorMessage = `Error from OpenAI API: ${response.status} ${response.statusText}`;
+      
+      try {
+        const errorText = await response.text();
+        console.error('Error response text:', errorText);
+        
+        if (errorText) {
+          errorMessage += ` - ${errorText}`;
+        }
+      } catch (e) {
+        console.error('Could not read error response text:', e);
+      }
+      
+      throw new Error(errorMessage);
     }
     
-    const data = await response.json();
-    console.log('Received data from OpenAI API:', data);
+    // Get the raw response text first
+    const responseText = await response.text();
+    console.log('Raw response text length:', responseText.length);
+    
+    if (!responseText || responseText.trim() === '') {
+      console.error('Empty response received from server');
+      throw new Error('Empty response received from server');
+    }
+    
+    // Log the first part of the response to help debug
+    console.log('Response text sample:', responseText.substring(0, Math.min(200, responseText.length)));
+    
+    // Try to parse the JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+      console.log('Response data:', data);
+    } catch (e) {
+      console.error('Failed to parse response as JSON:', e);
+      console.error('Response text:', responseText);
+      
+      // Instead of throwing an error, let's try to process the raw text
+      // This is important because sometimes the API might return plain text instead of JSON
+      if (responseText.length > 0) {
+        console.log('Attempting to extract data from raw text response');
+        return mapOpenAIResponseToPatientData(responseText);
+      }
+      
+      throw new Error('Failed to parse server response as JSON and text extraction failed');
+    }
     
     if (data && data.content) {
       console.log('Successfully received content from OpenAI API');
       return mapOpenAIResponseToPatientData(data.content);
+    } else if (data && data.success === true && data.content === '') {
+      // Handle case where the API returns success but empty content
+      console.warn('API returned success but with empty content');
+      return { address: {} };
     } else {
-      console.error('Unexpected response format from OpenAI API:', data);
-      throw new Error('Invalid response format from OpenAI API');
+      console.error('Missing content in response:', data);
+      
+      // Try to use any available text in the response
+      if (data && typeof data === 'object') {
+        const anyTextContent = Object.values(data).find(val => 
+          typeof val === 'string' && val.length > 50
+        );
+        
+        if (anyTextContent) {
+          console.log('Found potential text content in response, attempting to extract data');
+          return mapOpenAIResponseToPatientData(anyTextContent as string);
+        }
+      }
+      
+      throw new Error('Invalid response format: missing content');
     }
   } catch (error) {
     console.error('Error extracting patient data with OpenAI:', error);

@@ -2374,16 +2374,28 @@ router.post('/process-openai', async (req: Request, res: Response) => {
         };
       }
       
-      const data = await response.json() as OpenAIResponse;
+      // Safely parse the JSON response
+      let data: OpenAIResponse;
+      try {
+        data = await response.json() as OpenAIResponse;
+      } catch (jsonError) {
+        console.error('Failed to parse OpenAI response as JSON:', jsonError);
+        return res.status(500).json({
+          message: 'Failed to parse OpenAI response',
+          error: 'Invalid JSON in API response'
+        });
+      }
       
       const content = data.choices?.[0]?.message?.content || '';
       
       console.log('Received OpenAI response, length:', content.length);
       if (content.length > 100) {
         console.log('First 100 chars:', content.substring(0, 100));
+      } else if (content.length === 0) {
+        console.warn('OpenAI returned empty content');
       }
       
-      // Return the content
+      // Return the content with proper JSON formatting
       return res.json({ 
         success: true,
         content: content,
@@ -2399,9 +2411,10 @@ router.post('/process-openai', async (req: Request, res: Response) => {
     }
   } catch (error: any) {
     console.error('Error in OpenAI Vision API:', error);
+    // Ensure we return a valid JSON response even for unexpected errors
     return res.status(500).json({
       message: 'Error processing with OpenAI',
-      error: error.message
+      error: error.message || 'Unknown error'
     });
   }
 });
